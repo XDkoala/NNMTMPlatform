@@ -1,0 +1,40 @@
+1. GeneralMLP_Regression
+Input layer: XX neurons (input features)
+Hidden layer 1: XX(128) neurons, Batch Normalization, ReLU activation
+Hidden layer 2: XX(64) neurons, Batch Normalization, ReLU activation
+Hidden layer 3: XX(32) neurons, Batch Normalization, ReLU activation
+Output layer: 1 neuron, linear activation
+Optimizer: Adam
+Loss function: MSE
+
+2. DropoutMLP_Regression
+Input layer: XX neurons (input features)
+Hidden layer 1: XX(128) neurons, Batch Normalization, ReLU activation, Dropout 0.3
+Hidden layer 2: XX(64) neurons, Batch Normalization, ReLU activation, Dropout 0.3
+Hidden layer 3: XX(32) neurons, Batch Normalization, ReLU activation, Dropout 0.3
+Output layer: 1 neuron, linear activation
+Optimizer: Adam
+Loss function: MSE
+
+3. L2RegularizedMLP_Regression
+Input layer: XX neurons (input features)
+Hidden layer 1: XX(128) neurons, Batch Normalization, ReLU activation, L2 regularization (0.001)
+Hidden layer 2: XX(64) neurons, Batch Normalization, ReLU activation, L2 regularization (0.001)
+Hidden layer 3: XX(32) neurons, Batch Normalization, ReLU activation, L2 regularization (0.001)
+Output layer: 1 neuron, linear activation
+Optimizer: Adam
+Loss function: MSE + L2 regularization
+
+4. DeepMLP_Regression
+Input layer: XX neurons (input features)
+Hidden layer 1: XX(256) neurons, Batch Normalization, ReLU activation
+Hidden layer 2: XX(128) neurons, Batch Normalization, ReLU activation
+Hidden layer 3: XX(64) neurons, Batch Normalization, ReLU activation
+Hidden layer 4: XX(32) neurons, Batch Normalization, ReLU activation
+Hidden layer 5: XX(16) neurons, Batch Normalization, ReLU activation
+Output layer: 1 neuron, linear activation
+Optimizer: Adam
+Loss function: MSE
+
+
+备注，XX后面括号中的是默认值。

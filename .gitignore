@@ -1,0 +1,61 @@
+# Build directories and generated files
+/build/
+/build-*/
+/.vs/
+/x64/
+/NNMTMPlatform/
+/QtWidget.AF116B10/
+
+*.obj
+*.o
+*.pdb
+*.idb
+*.iobj
+*.ipdb
+*.ilk
+*.exe
+*.dll
+*.lib
+*.exp
+*.log
+*.tlog
+*.recipe
+
+# Visual Studio user-specific settings
+*.suo
+*.user
+*.VC.db
+*.VC.opendb
+
+# CMake local and generated files
+CMakeUserPresets.json
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+CTestTestfile.cmake
+Testing/
+
+# Runtime model data and full datasets
+/data/
+/nn_data/
+*.pt
+*.pth
+*.bin
+
+# Local-only course material and Windows shortcuts
+/*.docx
+*.lnk
+
+# Editor and OS metadata
+/.vscode/
+/.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*~
