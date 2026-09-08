@@ -44,6 +44,25 @@ CMake 会在构建后复制所需的 Qt、OpenCV 和 LibTorch 运行库。
 
 也可以使用 Qt Creator 直接打开根目录的 `CMakeLists.txt`，选择 MSVC Qt Kit 后构建。
 
+## CUDA 加速
+
+使用 CUDA 版 LibTorch 构建时，程序会在每次训练、测试和推理开始前执行一次 CUDA 运算检查。检查成功后，模型参数、输入数据、标签和数据索引会自动迁移到 `CUDA:0`；没有可用显卡或检查失败时会回退到 CPU，并在界面中显示所用设备。
+
+可以通过环境变量覆盖自动选择：
+
+```powershell
+$env:NNMTM_DEVICE = "cpu"   # 强制使用 CPU
+$env:NNMTM_DEVICE = "cuda"  # 强制使用 CUDA；不可用时直接报错
+```
+
+如果显卡架构未被正确自动识别，可在本机的 `CMakeUserPresets.json` 中设置 `TORCH_CUDA_ARCH_LIST`。例如 RTX 50 系列使用 `"12.0"`。该设置只属于本机，不应写死在公共预设中。
+
+构建后可以验证核心逻辑和 CUDA 运行时：
+
+```powershell
+ctest --test-dir build/local-windows-release --output-on-failure
+```
+
 ## 目录结构
 
 ```text
@@ -55,7 +74,7 @@ resources/images/        项目图片资源
 docs/                    原课程需求和设计资料
 legacy/visual-studio/    仅供参考的旧 Visual Studio 工程
 examples/                后续加入的小型示例数据
-tests/                   后续加入的自动化测试
+tests/                   核心逻辑与 CUDA 运行时测试
 ```
 
 ## 本地数据
@@ -64,7 +83,7 @@ tests/                   后续加入的自动化测试
 
 ## 重构状态
 
-当前已完成仓库清理、CMake/Ninja 构建迁移和第一轮源码目录整理。训练正确性、线程生命周期、图片流式加载、测试与完整文档将在后续阶段继续处理。
+当前已完成仓库清理、CMake/Ninja 构建迁移、源码目录整理、训练正确性与线程生命周期修复，并已接入自动 CUDA 加速和基础自动化测试。图片流式加载与完整文档将在后续阶段继续处理。
 
 ## License
 

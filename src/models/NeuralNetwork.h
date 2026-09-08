@@ -10,6 +10,9 @@
 #include <sstream>
 #include <functional>
 #include <limits>
+#include <cstdlib>
+#include <algorithm>
+#include <cctype>
 #include <torch/torch.h>
 #include "TrainingUtils.h"
 
@@ -100,11 +103,12 @@ public:
 		else {
 			build_model(1);  // 回归和二分类输出维度均为 1
 		}
-		build_optimizer();  // 构建优化器
-		throw_if_cancelled();
+		select_compute_device();
 
 		// 3. 获取参数（通常需要先构建模型结构，再加载参数）
 		if (state != State::Train) get_parameters();
+		move_to_compute_device();
+		build_optimizer();  // 优化器必须在模型迁移到目标设备后构建
 		throw_if_cancelled();
 
 		// 4. 开始正式训练 / 测试 / 推理
@@ -130,6 +134,56 @@ public:
 	std::vector<int64_t> last_test_targets_indices;
 
 protected:
+	void select_compute_device() {
+		std::string preference = "auto";
+		if (const char* configured = std::getenv("NNMTM_DEVICE")) {
+			preference = configured;
+			std::transform(preference.begin(), preference.end(), preference.begin(),
+				[](unsigned char value) { return static_cast<char>(std::tolower(value)); });
+		}
+		if (preference != "auto" && preference != "cpu" && preference != "cuda") {
+			throw std::invalid_argument("NNMTM_DEVICE must be auto, cpu, or cuda.");
+		}
+
+		if (preference == "cpu") {
+			device = torch::Device(torch::kCPU);
+			log_msg("Compute device: CPU (selected by NNMTM_DEVICE).");
+			return;
+		}
+
+		if (!torch::cuda::is_available()) {
+			if (preference == "cuda") {
+				throw std::runtime_error("CUDA was requested, but LibTorch cannot access a CUDA device.");
+			}
+			device = torch::Device(torch::kCPU);
+			log_msg("CUDA is unavailable; using CPU.");
+			return;
+		}
+
+		try {
+			device = torch::Device(torch::kCUDA, 0);
+			auto probe = torch::ones({ 32, 32 },
+				torch::TensorOptions().dtype(torch::kFloat32).device(device));
+			const float probeResult = torch::matmul(probe, probe).sum().item<float>();
+			if (!std::isfinite(probeResult)) {
+				throw std::runtime_error("CUDA preflight returned a non-finite result.");
+			}
+			log_msg("Compute device: CUDA:0 (GPU acceleration enabled).");
+		} catch (const std::exception& error) {
+			if (preference == "cuda") {
+				throw std::runtime_error("CUDA preflight failed: " + std::string(error.what()));
+			}
+			device = torch::Device(torch::kCPU);
+			log_msg("CUDA preflight failed; using CPU. Reason: " + std::string(error.what()), true);
+		}
+	}
+
+	void move_to_compute_device() {
+		model.ptr()->to(device);
+		data_x = data_x.to(device);
+		if (data_y.defined()) data_y = data_y.to(device);
+	}
+
 	void throw_if_cancelled() const {
 		if (cancellation_requested && cancellation_requested()) {
 			throw OperationCancelled();
@@ -170,8 +224,9 @@ protected:
 
 		const int64_t num_train = static_cast<int64_t>(split.train.size());
 		const int64_t num_val = static_cast<int64_t>(split.validation.size());
-		auto train_indices_all = torch::tensor(split.train, torch::kLong);
-		auto val_indices = torch::tensor(split.validation, torch::kLong);
+		const auto indexOptions = torch::TensorOptions().dtype(torch::kLong).device(device);
+		auto train_indices_all = torch::tensor(split.train, indexOptions);
+		auto val_indices = torch::tensor(split.validation, indexOptions);
 
 		// 准备验证集数据 (放在循环外，避免重复切片)
 		auto val_x = data_x.index_select(0, val_indices);
@@ -202,7 +257,7 @@ protected:
 		for (int epoch = 0; epoch < max_epochs; ++epoch) {
 			throw_if_cancelled();
 			// 每个 Epoch 只打乱训练集的索引
-			auto epoch_shuffled_indices = torch::randperm(num_train, torch::kLong);
+			auto epoch_shuffled_indices = torch::randperm(num_train, indexOptions);
 			// 映射回原始数据索引
 			auto train_indices = train_indices_all.index_select(0, epoch_shuffled_indices);
 
@@ -746,7 +801,8 @@ protected:
 			// [修复方案] 使用 InputArchive 显式加载，绕过 operator>>
 			torch::serialize::InputArchive archive;
 			// 从文件读取数据到归档
-			archive.load_from(model_file.string());
+			// 始终先映射到 CPU，再由 conduct() 统一迁移，保证 GPU/CPU 存档可互用。
+			archive.load_from(model_file.string(), torch::Device(torch::kCPU));
 			// 将归档中的参数加载进现有的模型结构中
 			model.ptr()->load(archive);
 			
@@ -907,6 +963,7 @@ protected:
 	ResultCallback result_sender = nullptr; 	   // 结果回调
 	ProgressCallback progress_reporter = nullptr;  // 进度回调
 	CancellationCallback cancellation_requested = nullptr;
+	torch::Device device{ torch::kCPU };
 
 	fs::path data_path;  // 模型数据数据路径（不同状态下，数据的意义不同）
 	fs::path parameters_path; // 模型参数路径

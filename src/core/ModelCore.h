@@ -355,7 +355,9 @@ public:
                     int progress = (int)((double)epoch / total * 100); // 计算百分比
                     emit progressUpdated(progress); // 发送进度更新信号
                 },
-                nullptr,  // 训练模式下的 ResultCallback 用不上，设为 nullptr
+                [this](const std::string& message, bool) {
+                    emit statusChanged(QString::fromStdString(message));
+                },
                 nullptr,  // 训练模式下的 ProgressCallback 用不上，设为 nullptr
                 [this]() { return isInterruptionRequested(); }
             );

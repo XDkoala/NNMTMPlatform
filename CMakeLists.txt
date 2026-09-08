@@ -112,6 +112,30 @@ if(BUILD_TESTING)
         target_compile_options(NNMTMCoreTests PRIVATE /utf-8 /W4 /permissive-)
     endif()
     add_test(NAME core_logic COMMAND NNMTMCoreTests)
+
+    add_executable(NNMTMCudaRuntimeCheck tests/CudaRuntimeCheck.cpp)
+    target_link_libraries(NNMTMCudaRuntimeCheck PRIVATE ${TORCH_LIBRARIES})
+    if(TORCH_CXX_FLAGS)
+        target_compile_options(NNMTMCudaRuntimeCheck PRIVATE ${TORCH_CXX_FLAGS_LIST})
+    endif()
+    if(MSVC)
+        target_compile_options(NNMTMCudaRuntimeCheck PRIVATE /utf-8 /W3 /permissive-)
+    endif()
+    add_test(NAME cuda_runtime COMMAND NNMTMCudaRuntimeCheck)
+    set_tests_properties(cuda_runtime PROPERTIES SKIP_RETURN_CODE 77)
+
+    if(WIN32)
+        file(GLOB CUDA_TEST_RUNTIME_DLLS "${TORCH_INSTALL_PREFIX}/lib/*.dll")
+        if(CUDA_TEST_RUNTIME_DLLS)
+            add_custom_command(TARGET NNMTMCudaRuntimeCheck POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    ${CUDA_TEST_RUNTIME_DLLS}
+                    $<TARGET_FILE_DIR:NNMTMCudaRuntimeCheck>
+                COMMAND_EXPAND_LISTS
+                COMMENT "Deploying LibTorch runtime libraries for CUDA test"
+            )
+        endif()
+    endif()
 endif()
 
 install(TARGETS NNMTMPlatform
