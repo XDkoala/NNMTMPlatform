@@ -54,12 +54,9 @@ private:
 
 	// 获取模型数据
 	void get_data() override {
-		std::cout << "Loading images from " << data_path << "..." << std::endl;
-
-		std::vector<torch::Tensor> x_list; // 暂存图像 Tensor
+		std::cout << "Indexing images from " << data_path << "..." << std::endl;
+		image_paths.clear();
 		std::vector<int64_t> y_list;       // 暂存标签索引
-
-		int total_samples = 0;
 
 		// 定义支持的图片扩展名
 		const std::vector<std::string> valid_extensions = { ".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff" };
@@ -72,17 +69,33 @@ private:
 			return false;
 			};
 
-		// --- Train / Test 模式 ---
-		if (state != State::Infer) {
-			for (const auto& entry : fs::directory_iterator(data_path)) {
+		auto image_files_in = [&](const fs::path& directory) {
+			std::vector<fs::path> files;
+			for (const auto& entry : fs::directory_iterator(directory)) {
 				throw_if_cancelled();
-				if (!entry.is_directory()) continue;
+				if (entry.is_regular_file() && is_image(entry.path())) files.push_back(entry.path());
+			}
+			std::sort(files.begin(), files.end());
+			return files;
+		};
 
-				std::string label_name = entry.path().filename().string();
-				int class_sample_count = 0; // 当前类别的图片计数
+		// Train / Test 模式：只建立路径和标签索引，不把图片长期保存在内存中。
+		if (state != State::Infer) {
+			std::vector<fs::path> class_directories;
+			for (const auto& entry : fs::directory_iterator(data_path)) {
+				if (entry.is_directory()) class_directories.push_back(entry.path());
+			}
+			std::sort(class_directories.begin(), class_directories.end());
 
-				// 打印当前正在处理的类别
-				std::cout << "[Class]: " << std::left << std::setw(15) << label_name << " ... " << std::flush;
+			for (const auto& class_directory : class_directories) {
+				throw_if_cancelled();
+				const std::string label_name = class_directory.filename().string();
+				auto files = image_files_in(class_directory);
+				if (files.empty()) {
+					std::cerr << "Warning: No supported images in class directory: "
+						<< class_directory << std::endl;
+					continue;
+				}
 
 				// 处理标签映射
 				if (state == State::Train) {
@@ -96,66 +109,55 @@ private:
 					}
 				}
 
-				int64_t label_idx = label_map[label_name];
-
-				for (const auto& img_entry : fs::directory_iterator(entry.path())) {
-					throw_if_cancelled();
-					if (!img_entry.is_regular_file()) continue;
-					if (!is_image(img_entry.path())) continue;
-
-					torch::Tensor tensor_img = process_image(img_entry.path().string());
-
-					if (tensor_img.defined()) {
-						x_list.push_back(tensor_img);
-						y_list.push_back(label_idx);
-						total_samples++;
-						class_sample_count++;
-					}
+				const int64_t label_idx = label_map[label_name];
+				for (const auto& image_path : files) {
+					image_paths.push_back(image_path);
+					y_list.push_back(label_idx);
 				}
-				// 该类别处理完毕，输出数量并换行
-				std::cout << "Loaded: " << class_sample_count << " images." << std::endl;
+				std::cout << "[Class] " << label_name << ": indexed " << files.size()
+					<< " images." << std::endl;
 			}
 		}
-		// --- Infer 模式 ---
+		// Infer 模式：根目录中的图片按文件名稳定排序。
 		else {
-			for (const auto& entry : fs::directory_iterator(data_path)) {
-				throw_if_cancelled();
-				if (!entry.is_regular_file()) continue;
-				if (!is_image(entry.path())) continue;
-
-				torch::Tensor tensor_img = process_image(entry.path().string());
-
-				if (tensor_img.defined()) {
-					x_list.push_back(tensor_img);
-					total_samples++;
-
-					// Infer 模式下没有子文件夹，图片可能很多
-					// 使用 \r 动态更新计数，不换行，避免刷屏
-					if (total_samples % 10 == 0) { // 每10张刷新一次显示，减少IO压力
-						std::cout << "\rLoaded: " << total_samples << " images..." << std::flush;
-					}
-				}
-			}
-			// 循环结束后换行
-			std::cout << "\rLoaded: " << total_samples << " images. Done.   " << std::endl;
+			image_paths = image_files_in(data_path);
 		}
 
-		if (x_list.empty()) {
+		if (image_paths.empty()) {
 			throw std::runtime_error("No valid images found in path.");
 		}
 
-		// 转换为 Batch Tensor
-		data_x = torch::stack(x_list);
-
 		if (state != State::Infer) {
-			data_y = torch::tensor(y_list, torch::kLong).view({ (int64_t)total_samples, 1 });
+			data_y = torch::tensor(y_list, torch::kLong).view({ static_cast<int64_t>(image_paths.size()), 1 });
 		}
 
-		std::cout << "--------------------------------------------------" << std::endl;
-		std::cout << "All Data Loaded Successfully." << std::endl;
-		std::cout << "Total Samples: " << total_samples
-			<< " | Shape: " << data_x.sizes() << std::endl;
-		std::cout << "--------------------------------------------------" << std::endl;
+		std::cout << "Image index ready. Total samples: " << image_paths.size()
+			<< ". Images will be decoded in batches." << std::endl;
+	}
+
+	int64_t sample_count() const override {
+		return static_cast<int64_t>(image_paths.size());
+	}
+
+	torch::Tensor feature_batch(const torch::Tensor& indices) override {
+		auto cpu_indices = indices.to(torch::kCPU).to(torch::kLong).contiguous();
+		const auto* values = cpu_indices.data_ptr<int64_t>();
+		std::vector<torch::Tensor> images;
+		images.reserve(cpu_indices.numel());
+		for (int64_t position = 0; position < cpu_indices.numel(); ++position) {
+			throw_if_cancelled();
+			const int64_t index = values[position];
+			if (index < 0 || index >= static_cast<int64_t>(image_paths.size())) {
+				throw std::out_of_range("Image batch index is out of range.");
+			}
+			auto image = process_image(image_paths[static_cast<std::size_t>(index)].string());
+			if (!image.defined()) {
+				throw std::runtime_error("Failed to decode image: " +
+					image_paths[static_cast<std::size_t>(index)].string());
+			}
+			images.push_back(std::move(image));
+		}
+		return torch::stack(images).to(device);
 	}
 
 	// 辅助函数：单张图片处理
@@ -217,8 +219,6 @@ private:
 
 	// 辅助函数：构建优化器
 	void build_optimizer() override {
-		double learning_rate = 0.001;
-
 		// CNN 通常使用 Adam 或 SGD+Momentum
 		// 这里使用 Adam
 		optimizer = std::make_shared<torch::optim::Adam>(
@@ -229,4 +229,5 @@ private:
 	}
 
 	const CNNType modelType;  // 模型类型（LeNet, AlexNet, VGGNet, ResNet）
+	std::vector<fs::path> image_paths;
 };

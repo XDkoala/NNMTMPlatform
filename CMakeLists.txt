@@ -124,16 +124,61 @@ if(BUILD_TESTING)
     add_test(NAME cuda_runtime COMMAND NNMTMCudaRuntimeCheck)
     set_tests_properties(cuda_runtime PROPERTIES SKIP_RETURN_CODE 77)
 
+    add_executable(NNMTMAnnPipelineCheck
+        tests/AnnPipelineCheck.cpp
+        src/models/NeuralNetwork.h
+        src/models/ANN.h
+        src/models/ANNModels.h
+        src/core/TrainingUtils.h
+    )
+    target_include_directories(NNMTMAnnPipelineCheck PRIVATE src/models src/core)
+    target_link_libraries(NNMTMAnnPipelineCheck PRIVATE ${TORCH_LIBRARIES})
+    if(TORCH_CXX_FLAGS)
+        target_compile_options(NNMTMAnnPipelineCheck PRIVATE ${TORCH_CXX_FLAGS_LIST})
+    endif()
+    if(MSVC)
+        target_compile_options(NNMTMAnnPipelineCheck PRIVATE /utf-8 /W3 /permissive-)
+    endif()
+    add_test(NAME ann_pipeline COMMAND NNMTMAnnPipelineCheck)
+
+    add_executable(NNMTMCnnPipelineCheck
+        tests/CnnPipelineCheck.cpp
+        src/models/NeuralNetwork.h
+        src/models/CNN.h
+        src/models/CNNModels.h
+        src/core/TrainingUtils.h
+    )
+    target_include_directories(NNMTMCnnPipelineCheck PRIVATE src/models src/core)
+    target_link_libraries(NNMTMCnnPipelineCheck PRIVATE
+        ${TORCH_LIBRARIES}
+        opencv_core
+        opencv_imgproc
+        opencv_imgcodecs
+    )
+    if(TORCH_CXX_FLAGS)
+        target_compile_options(NNMTMCnnPipelineCheck PRIVATE ${TORCH_CXX_FLAGS_LIST})
+    endif()
+    if(MSVC)
+        target_compile_options(NNMTMCnnPipelineCheck PRIVATE /utf-8 /W3 /permissive-)
+    endif()
+    add_test(NAME cnn_pipeline COMMAND NNMTMCnnPipelineCheck)
+    set_tests_properties(cnn_pipeline PROPERTIES SKIP_RETURN_CODE 77)
+
     if(WIN32)
         file(GLOB CUDA_TEST_RUNTIME_DLLS "${TORCH_INSTALL_PREFIX}/lib/*.dll")
         if(CUDA_TEST_RUNTIME_DLLS)
-            add_custom_command(TARGET NNMTMCudaRuntimeCheck POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    ${CUDA_TEST_RUNTIME_DLLS}
-                    $<TARGET_FILE_DIR:NNMTMCudaRuntimeCheck>
-                COMMAND_EXPAND_LISTS
-                COMMENT "Deploying LibTorch runtime libraries for CUDA test"
-            )
+            foreach(CUDA_TEST_TARGET IN ITEMS
+                    NNMTMCudaRuntimeCheck
+                    NNMTMAnnPipelineCheck
+                    NNMTMCnnPipelineCheck)
+                add_custom_command(TARGET ${CUDA_TEST_TARGET} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        ${CUDA_TEST_RUNTIME_DLLS}
+                        $<TARGET_FILE_DIR:${CUDA_TEST_TARGET}>
+                    COMMAND_EXPAND_LISTS
+                    COMMENT "Deploying LibTorch runtime libraries for ${CUDA_TEST_TARGET}"
+                )
+            endforeach()
         endif()
     endif()
 endif()

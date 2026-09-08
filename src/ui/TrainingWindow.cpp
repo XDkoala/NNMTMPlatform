@@ -221,7 +221,6 @@ void TrainingWindow::updateChart(int step, double trainLoss, double valLoss) {
 }
 // 训练结束处理
 void TrainingWindow::onFinished() {
-    statusLabel->setText("训练结束");
     progressBar->setValue(100); // 进度条填满
     saveBtn->setEnabled(true); // 启用保存按钮
 }

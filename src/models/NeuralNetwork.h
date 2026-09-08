@@ -69,6 +69,17 @@ public:
 		this->cancellation_requested = cancel_cb;
 	}
 
+	void set_training_options(int epochs, int64_t batchSize, double learningRate) {
+		if (epochs < 1) throw std::invalid_argument("Epoch count must be positive.");
+		if (batchSize < 1) throw std::invalid_argument("Batch size must be positive.");
+		if (!(learningRate > 0.0) || !std::isfinite(learningRate)) {
+			throw std::invalid_argument("Learning rate must be a finite positive number.");
+		}
+		max_epochs = epochs;
+		batch_size = batchSize;
+		learning_rate = learningRate;
+	}
+
 	// 析构函数
 	virtual ~NeuralNetwork() = default;
 	
@@ -180,8 +191,30 @@ protected:
 
 	void move_to_compute_device() {
 		model.ptr()->to(device);
-		data_x = data_x.to(device);
+		if (data_x.defined()) data_x = data_x.to(device);
 		if (data_y.defined()) data_y = data_y.to(device);
+	}
+
+	virtual int64_t sample_count() const {
+		return data_x.defined() ? data_x.size(0) : 0;
+	}
+
+	virtual torch::Tensor feature_batch(const torch::Tensor& indices) {
+		return data_x.index_select(0, indices);
+	}
+
+	virtual torch::Tensor label_batch(const torch::Tensor& indices) {
+		return data_y.index_select(0, indices);
+	}
+
+	torch::Tensor calculate_loss(const torch::Tensor& output, const torch::Tensor& targets) const {
+		if (taskType == Task::BinaryClassification) {
+			return torch::binary_cross_entropy_with_logits(output, targets.to(torch::kFloat32));
+		}
+		if (taskType == Task::MultiClassification) {
+			return torch::cross_entropy_loss(output, targets.squeeze(1).to(torch::kLong));
+		}
+		return torch::mse_loss(output, targets.to(torch::kFloat32));
 	}
 
 	void throw_if_cancelled() const {
@@ -201,7 +234,7 @@ protected:
 		//std::cout << "Starting Training..." << std::endl;
 		log_msg("Starting Training...");
 
-		const int64_t num_total = data_x.size(0); // 样本总数
+		const int64_t num_total = sample_count(); // 样本总数
 		if (num_total < 2) throw std::runtime_error("Training requires at least two samples.");
 
 		torch::manual_seed(42);
@@ -228,18 +261,12 @@ protected:
 		auto train_indices_all = torch::tensor(split.train, indexOptions);
 		auto val_indices = torch::tensor(split.validation, indexOptions);
 
-		// 准备验证集数据 (放在循环外，避免重复切片)
-		auto val_x = data_x.index_select(0, val_indices);
-		auto val_y = data_y.index_select(0, val_indices);
-
 		//std::cout << "Data Split -> Train: " << num_train << " | Validation: " << num_val << std::endl;
 		std::ostringstream oss;
 		oss << "Data Split -> Train: " << num_train << " | Validation: " << num_val;
 		log_msg(oss.str());
 		
 		// 超参数设置
-		int max_epochs = 100;    // 最大训练轮数 (Mini-batch收敛快，轮数可适当减少)
-		int64_t batch_size = 32;   // 批次大小 (32, 64, 128)
 		int patience = 10;        // 耐心值：多少轮 Loss 不下降则停止
 		double min_delta = 1e-4;  // 最小改善阈值：Loss 减少小于此值视为未改善
 
@@ -276,29 +303,15 @@ protected:
 				// 获取打乱后的当前 Batch 索引，indices[i : end_idx]
 				auto batch_idx = train_indices.slice(0, i, end_idx);
 
-				// 根据索引提取数据 (使用 index_select)
-				auto batch_x = data_x.index_select(0, batch_idx);
-				auto batch_y = data_y.index_select(0, batch_idx);
+				// ANN 直接索引内存张量；CNN 在这里按批次读取图片。
+				auto batch_x = feature_batch(batch_idx);
+				auto batch_y = label_batch(batch_idx);
 
 				// 训练单步（Forward + Backward）
 				optimizer->zero_grad(); // 梯度清零
 				auto output = model.forward(batch_x); // 前向传播
 
-				// 计算损失
-				torch::Tensor loss;
-				if (taskType == Task::BinaryClassification) {
-					// 二分类任务：BCE With Logits (输入 logits，目标 float)
-					loss = torch::binary_cross_entropy_with_logits(output, batch_y.to(torch::kFloat32));
-				}
-				else if (taskType == Task::MultiClassification) {
-					// 多分类任务：Cross Entropy (输入 logits [N, C]，目标 Long [N])
-					// data_y 形状是 (N, 1)，需要 squeeze 变成 (N)
-					loss = torch::cross_entropy_loss(output, batch_y.squeeze(1).to(torch::kLong));
-				}
-				else {
-					// 回归任务：MSE Loss
-					loss = torch::mse_loss(output, batch_y.to(torch::kFloat32));
-				}
+				torch::Tensor loss = calculate_loss(output, batch_y);
 
 				loss.backward();
 				optimizer->step(); // 更新参数
@@ -320,20 +333,20 @@ protected:
 
 			{
 				torch::NoGradGuard no_grad; // 不计算梯度，节省内存
-				auto val_out = model.forward(val_x);
-				torch::Tensor v_loss;
-
-				// 复用 Loss 计算逻辑
-				if (taskType == Task::BinaryClassification) {
-					v_loss = torch::binary_cross_entropy_with_logits(val_out, val_y.to(torch::kFloat32));
+				double validationLossSum = 0.0;
+				int64_t validationSamples = 0;
+				for (int64_t i = 0; i < num_val; i += batch_size) {
+					throw_if_cancelled();
+					const int64_t end_idx = std::min(i + batch_size, num_val);
+					auto batch_idx = val_indices.slice(0, i, end_idx);
+					auto val_x = feature_batch(batch_idx);
+					auto val_y = label_batch(batch_idx);
+					auto val_out = model.forward(val_x);
+					const double batchLoss = calculate_loss(val_out, val_y).item<double>();
+					validationLossSum += batchLoss * static_cast<double>(end_idx - i);
+					validationSamples += end_idx - i;
 				}
-				else if (taskType == Task::MultiClassification) {
-					v_loss = torch::cross_entropy_loss(val_out, val_y.squeeze(1).to(torch::kLong));
-				}
-				else {
-					v_loss = torch::mse_loss(val_out, val_y.to(torch::kFloat32));
-				}
-				current_val_loss = v_loss.item<double>();
+				current_val_loss = validationLossSum / static_cast<double>(validationSamples);
 			}
 
 			loss_history.push_back(current_val_loss); // 记录验证集 Loss 历史
@@ -544,12 +557,12 @@ protected:
 
 			// 统计错误样本
 			int64_t correct_count = 0;
-			std::vector<std::tuple<int, int, int>> errors; // <样本次序，预测值，真实值>
+			std::vector<std::tuple<int64_t, int64_t, int64_t>> errors; // <样本次序，预测值，真实值>
 
 			auto p_data = pred_labels.accessor<int64_t, 1>();
 			auto t_data = true_labels.accessor<int64_t, 1>();
 
-			for (int i = 0; i < num_samples; ++i) {
+			for (int64_t i = 0; i < num_samples; ++i) {
 				throw_if_cancelled();
 				if (p_data[i] == t_data[i]) {
 					correct_count++;
@@ -876,23 +889,20 @@ protected:
 		torch::NoGradGuard no_grad; // 禁用梯度计算
 		model.ptr()->eval(); // 设置为评估模式
 
-		auto x = data_x.to(torch::kFloat32);
-		auto output = model.forward(x);
-
-		// 根据任务类型处理输出
-		if (taskType == Task::BinaryClassification) {
-			// 二分类：Sigmoid 激活 -> 概率 -> 阈值判决 (0.5)
-			// 这里返回概率值，如果需要 0/1 标签可以使用 (output.sigmoid() > 0.5).to(torch::kLong)
-			return output.sigmoid();
+		const int64_t total = sample_count();
+		if (total == 0) throw std::runtime_error("No input samples found.");
+		const auto indexOptions = torch::TensorOptions().dtype(torch::kLong).device(device);
+		std::vector<torch::Tensor> outputs;
+		for (int64_t start = 0; start < total; start += batch_size) {
+			throw_if_cancelled();
+			const int64_t end = std::min(start + batch_size, total);
+			auto indices = torch::arange(start, end, indexOptions);
+			auto output = model.forward(feature_batch(indices).to(torch::kFloat32));
+			if (taskType == Task::BinaryClassification) output = output.sigmoid();
+			else if (taskType == Task::MultiClassification) output = output.argmax(1);
+			outputs.push_back(output.to(torch::kCPU));
 		}
-		else if (taskType == Task::MultiClassification) {
-			// 多分类：Softmax -> Argmax 获取类别索引
-			return output.argmax(1); // 返回形状 (N)
-		}
-		else {
-			// 回归：直接返回预测值
-			return output;
-		}
+		return torch::cat(outputs, 0);
 	}
 
 	// 保存模型（Train状态特有）
@@ -964,6 +974,9 @@ protected:
 	ProgressCallback progress_reporter = nullptr;  // 进度回调
 	CancellationCallback cancellation_requested = nullptr;
 	torch::Device device{ torch::kCPU };
+	int max_epochs = 100;
+	int64_t batch_size = 32;
+	double learning_rate = 0.001;
 
 	fs::path data_path;  // 模型数据数据路径（不同状态下，数据的意义不同）
 	fs::path parameters_path; // 模型参数路径

@@ -16,6 +16,7 @@
 #include <QListWidget> // Qt 列表控件类
 #include <QProgressBar> // Qt 进度条类
 #include <QSpinBox> // Qt 整数输入框类
+#include <QDoubleSpinBox>
 #include <QtCharts> // Qt 图表模块
 #include <QChart> // Qt 图表类
 #include <QChartView> // Qt 图表视图类
@@ -146,6 +147,9 @@ private:
     QTextEdit* introEdit; // 简介输入框
     QComboBox* taskCombo, * archCombo; // 任务和架构下拉框
     QSpinBox* featureSpin; // 特征数量输入框
+    QSpinBox* epochSpin;
+    QSpinBox* batchSpin;
+    QDoubleSpinBox* learningRateSpin;
     QLabel* featureLabel; // 特征数量标签
     bool fillResultInfo(ModelStatus status); // 填充 resultInfo 的辅助函数
 };

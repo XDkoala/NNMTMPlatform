@@ -66,6 +66,27 @@ AddModelDialog::AddModelDialog(int currentCount, const ModelInfo* initData, QWid
     archCombo->installEventFilter(this); // 安装事件过滤器（用于未选任务时拦截点击）
     layout->addWidget(archCombo);
 
+    layout->addWidget(new QLabel("训练参数:"));
+    QHBoxLayout* trainingOptionsLayout = new QHBoxLayout();
+    epochSpin = new QSpinBox(this);
+    epochSpin->setRange(1, 10000);
+    epochSpin->setValue(initData ? initData->maxEpochs : 100);
+    epochSpin->setPrefix("轮数 ");
+    batchSpin = new QSpinBox(this);
+    batchSpin->setRange(1, 1024);
+    batchSpin->setValue(initData ? initData->batchSize : 32);
+    batchSpin->setPrefix("批次 ");
+    learningRateSpin = new QDoubleSpinBox(this);
+    learningRateSpin->setDecimals(6);
+    learningRateSpin->setRange(0.000001, 1.0);
+    learningRateSpin->setSingleStep(0.0001);
+    learningRateSpin->setValue(initData ? initData->learningRate : 0.001);
+    learningRateSpin->setPrefix("学习率 ");
+    trainingOptionsLayout->addWidget(epochSpin);
+    trainingOptionsLayout->addWidget(batchSpin);
+    trainingOptionsLayout->addWidget(learningRateSpin);
+    layout->addLayout(trainingOptionsLayout);
+
     // 任务类型改变时的逻辑
     connect(taskCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), [=](int index) {
         archCombo->clear(); // 清空架构选项
@@ -208,6 +229,9 @@ bool AddModelDialog::fillResultInfo(ModelStatus status) {
     resultInfo.createTime = QDateTime::currentDateTime(); // 获取当前时间
     resultInfo.status = status; // 设置状态
     resultInfo.inputDim = isNumericTask(resultInfo.taskType) ? featureSpin->value() : 0; // 设置输入维度
+    resultInfo.maxEpochs = epochSpin->value();
+    resultInfo.batchSize = batchSpin->value();
+    resultInfo.learningRate = learningRateSpin->value();
     return true;
 }
 

@@ -240,22 +240,23 @@ private:
 
 	// 辅助函数：构建模型
 	void build_model(int output_dim) override {
+		const int input_dim = static_cast<int>(numX);
 		switch (modelType) {
 		case ANNType::SimpleMLP: // 结构与 General 相同
-			model = std::make_shared<GeneralMLP>(numX, output_dim);
+			model = std::make_shared<GeneralMLP>(input_dim, output_dim);
 			break;
 			case ANNType::GeneralMLP:
 			case ANNType::L2RegularizedMLP: // 结构与 General 相同
-				model = std::make_shared<GeneralMLP>(numX, output_dim);
+				model = std::make_shared<GeneralMLP>(input_dim, output_dim);
 				break;
 			case ANNType::DropoutMLP:
-				model = std::make_shared<DropoutMLP>(numX, output_dim);
+				model = std::make_shared<DropoutMLP>(input_dim, output_dim);
 				break;
 			case ANNType::DeepMLP:
-				model = std::make_shared<DeepMLP>(numX, output_dim);
+				model = std::make_shared<DeepMLP>(input_dim, output_dim);
 				break;
 			case ANNType::SuperDeepMLP:
-				model = std::make_shared<SuperDeepMLP>(numX, output_dim);
+				model = std::make_shared<SuperDeepMLP>(input_dim, output_dim);
 				break;
 			default:
 				throw std::invalid_argument("Unknown ANNType");
@@ -269,7 +270,6 @@ private:
 
 	// 辅助函数：构建优化器
 	void build_optimizer() override {
-		double learning_rate = 0.01;
 		double weight_decay = 0.0;
 
 		// 如果是 L2 正则化模型，设置 weight_decay

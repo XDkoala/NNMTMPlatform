@@ -27,6 +27,7 @@
 #include <QRandomGenerator> // Qt 随机数生成器
 #include <QCoreApplication> // Qt 核心应用程序类
 #include <QDebug> // Qt 调试输出类
+#include <QElapsedTimer>
 #include <cmath> // 标准 C++ 数学库
 
 // 1. 数据定义
@@ -124,6 +125,9 @@ struct ModelInfo {
     QDateTime createTime; // 创建时间
     double accuracy = 0.0; // 模型准确率（初始化为 0.0）
     int inputDim = 0; // 输入特征维度（初始化为 0）
+    int maxEpochs = 100;
+    int batchSize = 32;
+    double learningRate = 0.001;
 
     // 重载 == 运算符，用于比较两个 ModelInfo 对象是否相同（通过 ID 判断）
     bool operator==(const ModelInfo& other) const { return id == other.id; }
@@ -141,6 +145,9 @@ struct ModelInfo {
         json["createTime"] = createTime.toString(Qt::ISODate); // 存入创建时间（转为 ISO 字符串）
         json["accuracy"] = accuracy; // 存入准确率
         json["inputDim"] = inputDim; // 存入输入维度
+        json["maxEpochs"] = maxEpochs;
+        json["batchSize"] = batchSize;
+        json["learningRate"] = learningRate;
         return json; // 返回 JSON 对象
     }
 
@@ -157,6 +164,9 @@ struct ModelInfo {
         info.createTime = QDateTime::fromString(json["createTime"].toString(), Qt::ISODate); // 读取并解析时间字符串
         info.accuracy = json["accuracy"].toDouble(); // 读取准确率
         info.inputDim = json["inputDim"].toInt(); // 读取输入维度
+        info.maxEpochs = json.contains("maxEpochs") ? json["maxEpochs"].toInt() : 100;
+        info.batchSize = json.contains("batchSize") ? json["batchSize"].toInt() : 32;
+        info.learningRate = json.contains("learningRate") ? json["learningRate"].toDouble() : 0.001;
         return info; // 返回填充好的对象
     }
 };
@@ -311,6 +321,8 @@ public:
     // 线程主执行函数
     void run() override {
         emit statusChanged("正在初始化计算图..."); // 发送信号：状态更新
+		QElapsedTimer elapsed;
+		elapsed.start();
 
         try {
             // 确定模型状态和任务类型
@@ -343,6 +355,8 @@ public:
                 );
             }
 
+			net->set_training_options(m_info.maxEpochs, m_info.batchSize, m_info.learningRate);
+
             // 绑定回调函数 (后端 -> 前端)
             // 当后端训练出一轮 Loss 时，lambda 被调用，发出 Qt 信号
             net->set_callbacks(
@@ -365,7 +379,8 @@ public:
             emit statusChanged("开始读取数据并训练..."); // 状态：开始训练
             net->conduct(); // 执行神经网络的主流程（数据读取 -> 训练循环）
 
-            emit statusChanged("训练完成！模型已保存。"); // 状态：完成
+            emit statusChanged(QString("训练完成！模型已保存。总用时 %1 秒。")
+				.arg(elapsed.elapsed() / 1000.0, 0, 'f', 1));
             emit trainingFinished(true, false); // 发送训练完成信号
 
         }
@@ -432,6 +447,8 @@ public:
                     m_info.id.toStdString()
                 );
             }
+
+			net->set_training_options(m_info.maxEpochs, m_info.batchSize, m_info.learningRate);
 
             // 2. 绑定结果回调
             // 当后端 infer/test 输出每一行结果时，触发此回调
