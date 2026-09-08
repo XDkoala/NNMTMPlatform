@@ -1,0 +1,43 @@
+{
+  "version": 6,
+  "include": [
+    "CMakePresets.json"
+  ],
+  "configurePresets": [
+    {
+      "name": "local-windows-base",
+      "hidden": true,
+      "inherits": "windows-base",
+      "cacheVariables": {
+        "CMAKE_MAKE_PROGRAM": "C:/path/to/ninja.exe",
+        "CMAKE_PREFIX_PATH": "C:/path/to/Qt/msvc2022_64;C:/path/to/libtorch;C:/path/to/vcpkg/installed/x64-windows"
+      }
+    },
+    {
+      "name": "local-windows-debug",
+      "displayName": "Local Windows Debug",
+      "inherits": [
+        "local-windows-base",
+        "windows-debug"
+      ]
+    },
+    {
+      "name": "local-windows-release",
+      "displayName": "Local Windows Release",
+      "inherits": [
+        "local-windows-base",
+        "windows-release"
+      ]
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "local-windows-debug",
+      "configurePreset": "local-windows-debug"
+    },
+    {
+      "name": "local-windows-release",
+      "configurePreset": "local-windows-release"
+    }
+  ]
+}

@@ -3,8 +3,8 @@
 
 namespace nn = torch::nn;
 
-// Ä£ÐÍ 0: SimpleMLP
-// ½á¹¹: Input -> [Linear->BN->ReLU] * 3 -> Linear(Output)
+// æ¨¡åž‹ 0: SimpleMLP
+// ç»“æž„: Input -> [Linear->BN->ReLU] * 3 -> Linear(Output)
 struct SimpleMLP : nn::Module {
     nn::Linear fc1{ nullptr }, fc2{ nullptr }, fc_out{ nullptr };
     nn::BatchNorm1d bn1{ nullptr }, bn2{ nullptr };
@@ -38,8 +38,8 @@ struct SimpleMLP : nn::Module {
 };
 
 
-// Ä£ÐÍ 1: GeneralMLP£¨Í¬Ê±Ò²ÊÇ L2RegularizedMLP µÄ½á¹¹£©
-// ½á¹¹: Input -> [Linear->BN->ReLU] * 3 -> Linear(Output)
+// æ¨¡åž‹ 1: GeneralMLPï¼ˆåŒæ—¶ä¹Ÿæ˜¯ L2RegularizedMLP çš„ç»“æž„ï¼‰
+// ç»“æž„: Input -> [Linear->BN->ReLU] * 3 -> Linear(Output)
 struct GeneralMLP : nn::Module {
     nn::Linear fc1{ nullptr }, fc2{ nullptr }, fc3{ nullptr }, fc_out{ nullptr };
     nn::BatchNorm1d bn1{ nullptr }, bn2{ nullptr }, bn3{ nullptr };
@@ -79,8 +79,8 @@ struct GeneralMLP : nn::Module {
     }
 };
 
-// Ä£ÐÍ 2: DropoutMLP
-// ½á¹¹: Input -> [Linear->BN->ReLU->Dropout] * 3 -> Linear(Output)
+// æ¨¡åž‹ 2: DropoutMLP
+// ç»“æž„: Input -> [Linear->BN->ReLU->Dropout] * 3 -> Linear(Output)
 struct DropoutMLP : nn::Module {
     nn::Linear fc1{ nullptr }, fc2{ nullptr }, fc3{ nullptr }, fc_out{ nullptr };
     nn::BatchNorm1d bn1{ nullptr }, bn2{ nullptr }, bn3{ nullptr };
@@ -124,14 +124,14 @@ struct DropoutMLP : nn::Module {
     }
 };
 
-// Ä£ÐÍ 3: L2RegularizedMLP
-// ½á¹¹: Óë GeneralMLP ÏàÍ¬£¬´Ë´¦²»ÔÙÖØ¸´ÊéÐ´
-// ×¢Òâ: L2 Regularization (Weight Decay) ÔÚ Optimizer ÖÐÉèÖÃ¡£
-// ÀýÈç: torch::optim::Adam(model.parameters(), torch::optim::AdamOptions(lr).weight_decay(0.001));
+// æ¨¡åž‹ 3: L2RegularizedMLP
+// ç»“æž„: ä¸Ž GeneralMLP ç›¸åŒï¼Œæ­¤å¤„ä¸å†é‡å¤ä¹¦å†™
+// æ³¨æ„: L2 Regularization (Weight Decay) åœ¨ Optimizer ä¸­è®¾ç½®ã€‚
+// ä¾‹å¦‚: torch::optim::Adam(model.parameters(), torch::optim::AdamOptions(lr).weight_decay(0.001));
 
 
-// Ä£ÐÍ 4: DeepMLP_Regression
-// ½á¹¹: Input -> [Linear->BN->ReLU] * 5 -> Linear(Output)
+// æ¨¡åž‹ 4: DeepMLP_Regression
+// ç»“æž„: Input -> [Linear->BN->ReLU] * 5 -> Linear(Output)
 struct DeepMLP : nn::Module {
     nn::Linear fc1{ nullptr }, fc2{ nullptr }, fc3{ nullptr }, fc4{ nullptr }, fc5{ nullptr }, fc_out{ nullptr };
     nn::BatchNorm1d bn1{ nullptr }, bn2{ nullptr }, bn3{ nullptr }, bn4{ nullptr }, bn5{ nullptr };
@@ -180,7 +180,7 @@ struct DeepMLP : nn::Module {
 };
 
 
-// Ä£ÐÍ 5: Super_DeepMLP_Regression
+// æ¨¡åž‹ 5: Super_DeepMLP_Regression
 struct SuperDeepMLP : nn::Module {
     nn::Linear fc1{ nullptr }, fc2{ nullptr }, fc3{ nullptr }, fc4{ nullptr }, fc5{ nullptr }, fc6{ nullptr }, fc7{ nullptr }, fc_out{ nullptr };
     nn::BatchNorm1d bn1{ nullptr }, bn2{ nullptr }, bn3{ nullptr }, bn4{ nullptr }, bn5{ nullptr }, bn6{ nullptr }, bn7{ nullptr };

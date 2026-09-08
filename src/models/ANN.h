@@ -1,8 +1,8 @@
 #pragma once
 #include "NeuralNetwork.h"
-#include "ANN_model.h"
+#include "ANNModels.h"
 
-// Ã¶¾ÙANN£¨ÔİÊ±£©ËùÓĞµÄÄ£ĞÍÀàĞÍ
+// æšä¸¾ANNï¼ˆæš‚æ—¶ï¼‰æ‰€æœ‰çš„æ¨¡å‹ç±»å‹
 enum class ANNType {
 	SimpleMLP,
 	GeneralMLP,
@@ -12,26 +12,26 @@ enum class ANNType {
 	SuperDeepMLP
 };
 
-// ÈË¹¤Éñ¾­ÍøÂç»ùÀà£¨ÓÃÓÚ´¦ÀíÊıÖµÈÎÎñ£©
+// äººå·¥ç¥ç»ç½‘ç»œåŸºç±»ï¼ˆç”¨äºå¤„ç†æ•°å€¼ä»»åŠ¡ï¼‰
 class ANN : public NeuralNetwork {
 public:
-	// ¹¹Ôìº¯Êı£¨Ä£ĞÍ×´Ì¬£¬ÈÎÎñÀàĞÍ£¬Ä£ĞÍÀàĞÍ£¬ÌØÕ÷ÊıÁ¿£¬Êı¾İÂ·¾¶£¬Ä£ĞÍÃû³Æ£©
+	// æ„é€ å‡½æ•°ï¼ˆæ¨¡å‹çŠ¶æ€ï¼Œä»»åŠ¡ç±»å‹ï¼Œæ¨¡å‹ç±»å‹ï¼Œç‰¹å¾æ•°é‡ï¼Œæ•°æ®è·¯å¾„ï¼Œæ¨¡å‹åç§°ï¼‰
 	explicit ANN(State s, Task t, ANNType m, size_t n, const std::string& path, const std::string& model_id)
 		: NeuralNetwork(s, t, model_id), modelType(m), numX(n) 
 	{
-		get_data_path(path);  // »ñÈ¡ÓÃ»§Ìá¹©µÄÂ·¾¶£¨Ë³±ã¼ì²éÂ·¾¶ÊÇ·ñºÏ·¨£©
+		get_data_path(path);  // è·å–ç”¨æˆ·æä¾›çš„è·¯å¾„ï¼ˆé¡ºä¾¿æ£€æŸ¥è·¯å¾„æ˜¯å¦åˆæ³•ï¼‰
 	}
 	
-	// Îö¹¹º¯Êı
+	// ææ„å‡½æ•°
 	virtual ~ANN() = default;
-	// ½ûÓÃ ¸´ÖÆ¹¹Ôìº¯ÊıÓë¸³Öµ²Ù×÷·û
+	// ç¦ç”¨ å¤åˆ¶æ„é€ å‡½æ•°ä¸èµ‹å€¼æ“ä½œç¬¦
 	ANN(const ANN&) = delete; ANN& operator=(const ANN&) = delete;
-	// ÔÊĞí ÒÆ¶¯¹¹Ôìº¯Êı
+	// å…è®¸ ç§»åŠ¨æ„é€ å‡½æ•°
 	ANN(ANN&&) = default; ANN& operator=(ANN&&) = default;
 
-	// ÊµÏÖ»ùÀàµÄ·´¹éÒ»»¯º¯Êı
+	// å®ç°åŸºç±»çš„åå½’ä¸€åŒ–å‡½æ•°
     torch::Tensor denormalize_output(const torch::Tensor& output) override {
-        // Ö»ÓĞ»Ø¹éÈÎÎñÇÒ²ÎÊıÒÑ³õÊ¼»¯Ê±²Å½øĞĞ·´¹éÒ»»¯
+        // åªæœ‰å›å½’ä»»åŠ¡ä¸”å‚æ•°å·²åˆå§‹åŒ–æ—¶æ‰è¿›è¡Œåå½’ä¸€åŒ–
         if (taskType == Task::Regression && target_std.defined() && target_mean.defined()) {
             // y_real = y_norm * std + mean
             return output * target_std + target_mean;
@@ -40,14 +40,14 @@ public:
     }
 
 private:
-	// »ñÈ¡Ä£ĞÍÊı¾İÂ·¾¶£¨.txtÎÄ¼ş£©
+	// è·å–æ¨¡å‹æ•°æ®è·¯å¾„ï¼ˆ.txtæ–‡ä»¶ï¼‰
 	void get_data_path(const std::string& path) override {
-		// ¼ì²éÓÃ»§Ìá¹©µÄÂ·¾¶ÊÇ·ñÎª¿Õ»ò²»´æÔÚ
+		// æ£€æŸ¥ç”¨æˆ·æä¾›çš„è·¯å¾„æ˜¯å¦ä¸ºç©ºæˆ–ä¸å­˜åœ¨
 		if (path.empty() || !fs::exists(path)) {
 			throw std::invalid_argument("Invalid path.");
 		}
 
-		// ¼ì²éÂ·¾¶ÊÇ·ñÎª .txt ÎÄ¼ş
+		// æ£€æŸ¥è·¯å¾„æ˜¯å¦ä¸º .txt æ–‡ä»¶
 		fs::path p(path);
 		if (fs::is_regular_file(path) && p.extension() == ".txt") {
 			p.make_preferred();
@@ -59,79 +59,79 @@ private:
 		}
 	}
 
-	// »ñÈ¡Ä£ĞÍÊı¾İ
+	// è·å–æ¨¡å‹æ•°æ®
 	void get_data() override {
-		// ÔÚ data_path Â·¾¶»ñÈ¡Êı¾İ
+		// åœ¨ data_path è·¯å¾„è·å–æ•°æ®
 		std::ifstream file(data_path);
 		if (!file.is_open()) {
 			throw std::invalid_argument("Failed to open the data file.");
 		}
 
-		std::vector<float> x_data; // Ôİ´æÌØÕ÷
-		std::vector<float> y_data_float; // Ôİ´æ»Ø¹éÄ¿±ê
-		std::vector<int64_t> y_data_long; // Ôİ´æ·ÖÀàÄ¿±ê
+		std::vector<float> x_data; // æš‚å­˜ç‰¹å¾
+		std::vector<float> y_data_float; // æš‚å­˜å›å½’ç›®æ ‡
+		std::vector<int64_t> y_data_long; // æš‚å­˜åˆ†ç±»ç›®æ ‡
 
-		std::string line;  // ÁÙÊ±±äÁ¿´æ´¢Ã¿ĞĞÄÚÈİ
-		size_t line_count = 0;  // ¼ÇÂ¼ĞĞÊı£¨¼´mÖµ£©
+		std::string line;  // ä¸´æ—¶å˜é‡å­˜å‚¨æ¯è¡Œå†…å®¹
+		size_t line_count = 0;  // è®°å½•è¡Œæ•°ï¼ˆå³må€¼ï¼‰
 
-		/* ÈÎÎñÃèÊö£º
-			Èç¹û×´Ì¬ÊÇ Train »òÕß Test £¬ÄÇÃ´.txtÎÄ¼şÄÚ¸ñÊ½±ØĞëÂú×ã m*(n+1)£¬
-			¼´ m ĞĞÑù±¾£¬Ã¿ĞĞÓĞ n ¸öÊäÈëÖµ£¨ÌØÕ÷ x£©ºÍ 1 ¸öÄ¿±êÖµ£¨y£©£¬
-			È»¶ø£¬Èç¹û Train ×´Ì¬ÏÂ£¬ÇÒÎª·ÖÀàÈÎÎñ£¬yÖµ¾ÍÊÇ×Ö·û´®£¬Òò´ËÒªÇó¹¹½¨ label_map ¡£
-			Èç¹û×´Ì¬ÊÇ Test £¬ÇÒÎª·ÖÀàÈÎÎñ£¬»¹ĞèÒª¼ì²éÄ¿±êÖµÊÇ·ñ´æÔÚÓÚ label_map ÖĞ£¬
-			Èç¹û²»´æÔÚ£¬ĞèÒªÅ×³öÒì³£¡£
+		/* ä»»åŠ¡æè¿°ï¼š
+			å¦‚æœçŠ¶æ€æ˜¯ Train æˆ–è€… Test ï¼Œé‚£ä¹ˆ.txtæ–‡ä»¶å†…æ ¼å¼å¿…é¡»æ»¡è¶³ m*(n+1)ï¼Œ
+			å³ m è¡Œæ ·æœ¬ï¼Œæ¯è¡Œæœ‰ n ä¸ªè¾“å…¥å€¼ï¼ˆç‰¹å¾ xï¼‰å’Œ 1 ä¸ªç›®æ ‡å€¼ï¼ˆyï¼‰ï¼Œ
+			ç„¶è€Œï¼Œå¦‚æœ Train çŠ¶æ€ä¸‹ï¼Œä¸”ä¸ºåˆ†ç±»ä»»åŠ¡ï¼Œyå€¼å°±æ˜¯å­—ç¬¦ä¸²ï¼Œå› æ­¤è¦æ±‚æ„å»º label_map ã€‚
+			å¦‚æœçŠ¶æ€æ˜¯ Test ï¼Œä¸”ä¸ºåˆ†ç±»ä»»åŠ¡ï¼Œè¿˜éœ€è¦æ£€æŸ¥ç›®æ ‡å€¼æ˜¯å¦å­˜åœ¨äº label_map ä¸­ï¼Œ
+			å¦‚æœä¸å­˜åœ¨ï¼Œéœ€è¦æŠ›å‡ºå¼‚å¸¸ã€‚
 		
-			Èç¹û×´Ì¬ÊÇ Infer £¬ÄÇÃ´ .txt ÎÄ¼şÄÚ¸ñÊ½±ØĞëÂú×ã m*n£¬
-			¼´ m ĞĞÑù±¾£¬Ã¿ĞĞÓĞ n ¸öÊäÈëÖµ£¨ÌØÕ÷ x£©£¬Ã»ÓĞÄ¿±êÖµ.
+			å¦‚æœçŠ¶æ€æ˜¯ Infer ï¼Œé‚£ä¹ˆ .txt æ–‡ä»¶å†…æ ¼å¼å¿…é¡»æ»¡è¶³ m*nï¼Œ
+			å³ m è¡Œæ ·æœ¬ï¼Œæ¯è¡Œæœ‰ n ä¸ªè¾“å…¥å€¼ï¼ˆç‰¹å¾ xï¼‰ï¼Œæ²¡æœ‰ç›®æ ‡å€¼.
 		*/
 
-		// ¶ÁÈ¡Ã¿Ò»ĞĞÊı¾İ
+		// è¯»å–æ¯ä¸€è¡Œæ•°æ®
 		while (std::getline(file, line)) {
-			if (line.empty()) continue; // Ìø¹ı¿ÕĞĞ
+			if (line.empty()) continue; // è·³è¿‡ç©ºè¡Œ
 			std::istringstream stream(line);
 
-			// ¶ÁÈ¡ÌØÕ÷²¿·Ö£¨train, test, infer£©
+			// è¯»å–ç‰¹å¾éƒ¨åˆ†ï¼ˆtrain, test, inferï¼‰
 			for (size_t i = 0; i < numX; ++i) {
 				float feature;
-				if (!(stream >> feature)) {  // Èç¹û¶ÁÈ¡²»µ½£¬ÔòËµÃ÷ÌØÕ÷Êı²»¹»£¬Å×³öÒì³£
+				if (!(stream >> feature)) {  // å¦‚æœè¯»å–ä¸åˆ°ï¼Œåˆ™è¯´æ˜ç‰¹å¾æ•°ä¸å¤Ÿï¼ŒæŠ›å‡ºå¼‚å¸¸
 					throw std::invalid_argument("Insufficient features in line " + std::to_string(line_count + 1) + ". Expected " + std::to_string(numX) + " features.");
 				}
 				x_data.push_back(feature);
 			}
 
-			// ¶ÁÈ¡Ä¿±êÖµ²¿·Ö£¨train, test£©
+			// è¯»å–ç›®æ ‡å€¼éƒ¨åˆ†ï¼ˆtrain, testï¼‰
 			if (state != State::Infer) {
-				if (taskType == Task::Regression) {  // »Ø¹éÈÎÎñ
+				if (taskType == Task::Regression) {  // å›å½’ä»»åŠ¡
 					float label;
-					if (!(stream >> label)) {  // Èç¹û¶ÁÈ¡²»µ½£¬ÔòËµÃ÷Ã»ÓĞÄ¿±êÖµ£¬Å×³öÒì³£
+					if (!(stream >> label)) {  // å¦‚æœè¯»å–ä¸åˆ°ï¼Œåˆ™è¯´æ˜æ²¡æœ‰ç›®æ ‡å€¼ï¼ŒæŠ›å‡ºå¼‚å¸¸
 						throw std::invalid_argument("Missing label in regression task at line " + std::to_string(line_count + 1));
 					}
-					y_data_float.push_back(label);  // »Ø¹éÈÎÎñ´æ´¢ÎªÊıÖµ
+					y_data_float.push_back(label);  // å›å½’ä»»åŠ¡å­˜å‚¨ä¸ºæ•°å€¼
 				}
-				else {  //·ÖÀàÈÎÎñ
+				else {  //åˆ†ç±»ä»»åŠ¡
 					std::string label;
 					if (!(stream >> label)) {
 						throw std::invalid_argument("Missing label in regression task at line " + std::to_string(line_count + 1));
 					}
 
-					// ¶ÔÓÚ·ÖÀàÈÎÎñ£¬½«×Ö·û´®±êÇ©×ª»»ÎªÕûÊı±êÇ©
-					if (state == State::Train) {  // ÑµÁ·×´Ì¬
-						if (label_map.find(label) == label_map.end()) {  // Èç¹ûÃ»ÓĞÕÒµ½¸Ã±êÇ©
-							label_map.emplace(label, label_map.size());  // ÄÇÃ´Ìí¼ÓĞÂ±êÇ©
+					// å¯¹äºåˆ†ç±»ä»»åŠ¡ï¼Œå°†å­—ç¬¦ä¸²æ ‡ç­¾è½¬æ¢ä¸ºæ•´æ•°æ ‡ç­¾
+					if (state == State::Train) {  // è®­ç»ƒçŠ¶æ€
+						if (label_map.find(label) == label_map.end()) {  // å¦‚æœæ²¡æœ‰æ‰¾åˆ°è¯¥æ ‡ç­¾
+							label_map.emplace(label, label_map.size());  // é‚£ä¹ˆæ·»åŠ æ–°æ ‡ç­¾
 						}
 					}
-					else {  // ²âÊÔ×´Ì¬
-						if (label_map.find(label) == label_map.end()) {  // Èç¹ûÃ»ÓĞÕÒµ½¸Ã±êÇ©
-							throw std::invalid_argument("Invalid label: " + label);  // ËµÃ÷ÓÃ»§Êı¾İÓĞÎÊÌâ
+					else {  // æµ‹è¯•çŠ¶æ€
+						if (label_map.find(label) == label_map.end()) {  // å¦‚æœæ²¡æœ‰æ‰¾åˆ°è¯¥æ ‡ç­¾
+							throw std::invalid_argument("Invalid label: " + label);  // è¯´æ˜ç”¨æˆ·æ•°æ®æœ‰é—®é¢˜
 						}
 					}
 
-					y_data_long.push_back(label_map[label]);  // ´æ´¢ÕûÊı±êÇ©
+					y_data_long.push_back(label_map[label]);  // å­˜å‚¨æ•´æ•°æ ‡ç­¾
 				}
 
-				// ¼ì²éĞĞÎ²ÊÇ·ñÓĞ¶àÓà×Ö·û
+				// æ£€æŸ¥è¡Œå°¾æ˜¯å¦æœ‰å¤šä½™å­—ç¬¦
 				std::string extra_content;
-				// ³¢ÊÔÔÙ¶ÁÒ»¸ö×Ö·û´®¡£stream»á×Ô¶¯Ìø¹ıÇ°ÃæµÄ¿Õ°×·û¡£Èç¹û»¹ÄÜ¶Áµ½¶«Î÷£¬ËµÃ÷ÓĞ·Ç·¨²ĞÁôÊı¾İ¡£
+				// å°è¯•å†è¯»ä¸€ä¸ªå­—ç¬¦ä¸²ã€‚streamä¼šè‡ªåŠ¨è·³è¿‡å‰é¢çš„ç©ºç™½ç¬¦ã€‚å¦‚æœè¿˜èƒ½è¯»åˆ°ä¸œè¥¿ï¼Œè¯´æ˜æœ‰éæ³•æ®‹ç•™æ•°æ®ã€‚
 				if (stream >> extra_content) {
 					throw std::invalid_argument("Extra data found in line " + std::to_string(line_count + 1) +
 						". Expected end of line, but found: '" + extra_content + "'");
@@ -141,11 +141,11 @@ private:
 		}
 		file.close();
 
-		// ½«¶ÁÈ¡µ½µÄÊı¾İ×ª»»Îª torch::Tensor
-		// ÌØÕ÷Êı¾İ£¬´óĞ¡Îª (m, n)
+		// å°†è¯»å–åˆ°çš„æ•°æ®è½¬æ¢ä¸º torch::Tensor
+		// ç‰¹å¾æ•°æ®ï¼Œå¤§å°ä¸º (m, n)
 		data_x = torch::tensor(x_data).view({ static_cast<int64_t>(line_count), static_cast<int64_t>(numX) });
 		
-		// Ä¿±êÊı¾İ×ª»»
+		// ç›®æ ‡æ•°æ®è½¬æ¢
         if (state != State::Infer) {
             if (taskType == Task::Regression)
                 data_y = torch::tensor(y_data_float).view({ (int64_t)line_count, 1 });
@@ -153,53 +153,53 @@ private:
                 data_y = torch::tensor(y_data_long).view({ (int64_t)line_count, 1 });
         }
 
-		// Êı¾İ¹éÒ»»¯ (Standardization / Z-Score)
-		// TrainÊ±¼ÆËã²¢±£´æ Mean/Std£»Test/InferÊ±¶ÁÈ¡ Mean/Std¡£
-		// ¶¨Òå¹éÒ»»¯²ÎÊıÎÄ¼şÂ·¾¶: data/parameters/model_ID/normalization.pt
+		// æ•°æ®å½’ä¸€åŒ– (Standardization / Z-Score)
+		// Trainæ—¶è®¡ç®—å¹¶ä¿å­˜ Mean/Stdï¼›Test/Inferæ—¶è¯»å– Mean/Stdã€‚
+		// å®šä¹‰å½’ä¸€åŒ–å‚æ•°æ–‡ä»¶è·¯å¾„: data/parameters/model_ID/normalization.pt
 		fs::path norm_path = parameters_path / "normalization.pt";
 
 		if (state == State::Train) {
-			// ¼ÆËã¾ùÖµºÍ±ê×¼²î£¨ÑØ×Å dim=0£¬¼´ÁĞ·½Ïò¼ÆËã£©
-			// ´¦ÀíÌØÕ÷ X
+			// è®¡ç®—å‡å€¼å’Œæ ‡å‡†å·®ï¼ˆæ²¿ç€ dim=0ï¼Œå³åˆ—æ–¹å‘è®¡ç®—ï¼‰
+			// å¤„ç†ç‰¹å¾ X
 			input_mean = data_x.mean(0);
             input_std = data_x.std(0);
-				// ´¦Àí±ê×¼²îÎª 0 µÄÇé¿ö£¨·ÀÖ¹³ıÒÔ 0£©£¬Èç¹ûÄ³ÁĞÌØÕ÷ÖµÍêÈ«ÏàÍ¬£¬std Îª 0£¬´ËÊ±½«ÆäÉèÎª 1£¬±ÜÃâ NaN
+				// å¤„ç†æ ‡å‡†å·®ä¸º 0 çš„æƒ…å†µï¼ˆé˜²æ­¢é™¤ä»¥ 0ï¼‰ï¼Œå¦‚æœæŸåˆ—ç‰¹å¾å€¼å®Œå…¨ç›¸åŒï¼Œstd ä¸º 0ï¼Œæ­¤æ—¶å°†å…¶è®¾ä¸º 1ï¼Œé¿å… NaN
             input_std = torch::where(input_std == 0, torch::ones_like(input_std), input_std);
             data_x = (data_x - input_mean) / input_std;
 
-			// ´¦Àí±êÇ© Y£¨½öÕë¶Ô»Ø¹éÈÎÎñ£©
+			// å¤„ç†æ ‡ç­¾ Yï¼ˆä»…é’ˆå¯¹å›å½’ä»»åŠ¡ï¼‰
             if (taskType == Task::Regression) {
                 target_mean = data_y.mean(0);
                 target_std = data_y.std(0);
-                // ·ÀÖ¹ std Îª 0 (ËäÈ»ÔÚ»Ø¹é±êÇ©ÖĞºÜÉÙ¼û£¬µ«ÎªÁË½¡×³ĞÔ)
+                // é˜²æ­¢ std ä¸º 0 (è™½ç„¶åœ¨å›å½’æ ‡ç­¾ä¸­å¾ˆå°‘è§ï¼Œä½†ä¸ºäº†å¥å£®æ€§)
                 target_std = torch::where(target_std == 0, torch::ones_like(target_std), target_std);
                 
-                // Ö´ĞĞ¹éÒ»»¯£ºÈÃ data_y ·Ö²¼ÔÚ 0 ¸½½ü
+                // æ‰§è¡Œå½’ä¸€åŒ–ï¼šè®© data_y åˆ†å¸ƒåœ¨ 0 é™„è¿‘
                 data_y = (data_y - target_mean) / target_std;
                 
                 std::cout << "[Label Normalization] Y normalized. Mean: " << target_mean.item<float>() 
                           << ", Std: " << target_std.item<float>() << std::endl;
             } else {
-                // ·ÖÀàÈÎÎñ£¬´æ¸öÕ¼Î»·û£¬±£³ÖÎÄ¼ş¸ñÊ½Ò»ÖÂ
+                // åˆ†ç±»ä»»åŠ¡ï¼Œå­˜ä¸ªå ä½ç¬¦ï¼Œä¿æŒæ–‡ä»¶æ ¼å¼ä¸€è‡´
                 target_mean = torch::zeros({1});
                 target_std = torch::ones({1});
             }
 
-			// ±£´æ²ÎÊıµ½ÎÄ¼ş (ÒÔ±ã Test/Infer Ê¹ÓÃ)
-			create_parameters_dir(); // È·±£Ä¿Â¼´æÔÚ
+			// ä¿å­˜å‚æ•°åˆ°æ–‡ä»¶ (ä»¥ä¾¿ Test/Infer ä½¿ç”¨)
+			create_parameters_dir(); // ç¡®ä¿ç›®å½•å­˜åœ¨
 			std::vector<torch::Tensor> stats = { input_mean, input_std, target_mean, target_std };
             torch::save(stats, norm_path.string());
 
 			std::cout << "[Data Normalization] Stats calculated and saved to: " << norm_path.string() << std::endl;
 		}
 		else {
-			// Test »ò Infer ×´Ì¬
+			// Test æˆ– Infer çŠ¶æ€
 			if (fs::exists(norm_path)) {
-				// 1. ¼ÓÔØ²ÎÊı
+				// 1. åŠ è½½å‚æ•°
 				std::vector<torch::Tensor> stats;
 				torch::load(stats, norm_path.string());
 
-				// ¼æÈİĞÔ¼ì²é£º¾É°æÎÄ¼ş¿ÉÄÜÖ»ÓĞ2¸ötensor
+				// å…¼å®¹æ€§æ£€æŸ¥ï¼šæ—§ç‰ˆæ–‡ä»¶å¯èƒ½åªæœ‰2ä¸ªtensor
                 if (stats.size() >= 2) {
                     input_mean = stats[0];
                     input_std = stats[1];
@@ -208,12 +208,12 @@ private:
                     target_mean = stats[2];
                     target_std = stats[3];
                 } else {
-                    // Èç¹û¶ÁÈ¡¾ÉÄ£ĞÍÎÄ¼ş£¬Ã»ÓĞ Y µÄ²ÎÊı£¬¸øÓèÄ¬ÈÏÖµ
+                    // å¦‚æœè¯»å–æ—§æ¨¡å‹æ–‡ä»¶ï¼Œæ²¡æœ‰ Y çš„å‚æ•°ï¼Œç»™äºˆé»˜è®¤å€¼
                     target_mean = torch::zeros({1});
                     target_std = torch::ones({1});
                 }
 
-				// 2. Ö´ĞĞ¹éÒ»»¯ (Ê¹ÓÃÑµÁ·¼¯µÄ²ÎÊı)
+				// 2. æ‰§è¡Œå½’ä¸€åŒ– (ä½¿ç”¨è®­ç»ƒé›†çš„å‚æ•°)
 				data_x = (data_x - input_mean) / input_std;
 				
                 if (state == State::Test && taskType == Task::Regression) {
@@ -228,25 +228,25 @@ private:
 			}
 		}
 
-		// Ä¿±êÖµÊı¾İ£¬´óĞ¡Îª (m, 1)£¬¸ù¾İÈÎÎñÀàĞÍ¾ö¶¨ Tensor ÀàĞÍ
+		// ç›®æ ‡å€¼æ•°æ®ï¼Œå¤§å°ä¸º (m, 1)ï¼Œæ ¹æ®ä»»åŠ¡ç±»å‹å†³å®š Tensor ç±»å‹
 		if (state != State::Infer) {
-			if (taskType == Task::Regression)  // »Ø¹éÓÃ Float
+			if (taskType == Task::Regression)  // å›å½’ç”¨ Float
 				data_y = torch::tensor(y_data_float).view({ (int64_t)line_count, 1 });
-			else                                  // ·ÖÀàÓÃ Long
+			else                                  // åˆ†ç±»ç”¨ Long
 				data_y = torch::tensor(y_data_long).view({ (int64_t)line_count, 1 });
 		}
 
 		std::cout << "Data loaded. Samples: " << line_count << ", Features: " << numX << std::endl;
 	}
 
-	// ¸¨Öúº¯Êı£º¹¹½¨Ä£ĞÍ
+	// è¾…åŠ©å‡½æ•°ï¼šæ„å»ºæ¨¡å‹
 	void build_model(int output_dim) override {
 		switch (modelType) {
-		case ANNType::SimpleMLP: // ½á¹¹Óë General ÏàÍ¬
+		case ANNType::SimpleMLP: // ç»“æ„ä¸ General ç›¸åŒ
 			model = std::make_shared<GeneralMLP>(numX, output_dim);
 			break;
 			case ANNType::GeneralMLP:
-			case ANNType::L2RegularizedMLP: // ½á¹¹Óë General ÏàÍ¬
+			case ANNType::L2RegularizedMLP: // ç»“æ„ä¸ General ç›¸åŒ
 				model = std::make_shared<GeneralMLP>(numX, output_dim);
 				break;
 			case ANNType::DropoutMLP:
@@ -262,23 +262,23 @@ private:
 				throw std::invalid_argument("Unknown ANNType");
 		}
 
-		// ×¢²áÄ£ĞÍ²ÎÊıÒÔ±ã LibTorch ×·×Ù
-		// ×¢Òâ£ºnn::AnyModule ×Ô¶¯´¦Àí£¬µ«Èç¹ûÊÇÊÖ¶¯¹ÜÀíĞè register_module
-		model.ptr()->to(torch::kFloat32); // È·±£ÊÇ Float ÀàĞÍ
+		// æ³¨å†Œæ¨¡å‹å‚æ•°ä»¥ä¾¿ LibTorch è¿½è¸ª
+		// æ³¨æ„ï¼šnn::AnyModule è‡ªåŠ¨å¤„ç†ï¼Œä½†å¦‚æœæ˜¯æ‰‹åŠ¨ç®¡ç†éœ€ register_module
+		model.ptr()->to(torch::kFloat32); // ç¡®ä¿æ˜¯ Float ç±»å‹
 		std::cout << "Model built. Structure: " << (int)modelType << ", Output Dim: " << output_dim << std::endl;
 	}
 
-	// ¸¨Öúº¯Êı£º¹¹½¨ÓÅ»¯Æ÷
+	// è¾…åŠ©å‡½æ•°ï¼šæ„å»ºä¼˜åŒ–å™¨
 	void build_optimizer() override {
 		double learning_rate = 0.01;
 		double weight_decay = 0.0;
 
-		// Èç¹ûÊÇ L2 ÕıÔò»¯Ä£ĞÍ£¬ÉèÖÃ weight_decay
+		// å¦‚æœæ˜¯ L2 æ­£åˆ™åŒ–æ¨¡å‹ï¼Œè®¾ç½® weight_decay
 		if (modelType == ANNType::L2RegularizedMLP) {
-			weight_decay = 1e-3; // ÉèÖÃ L2 ³Í·£ÏµÊı
+			weight_decay = 1e-3; // è®¾ç½® L2 æƒ©ç½šç³»æ•°
 		}
 
-		// Ê¹ÓÃ Adam ÓÅ»¯Æ÷
+		// ä½¿ç”¨ Adam ä¼˜åŒ–å™¨
 		optimizer = std::make_shared<torch::optim::Adam>(
 			model.ptr()->parameters(),
 			torch::optim::AdamOptions(learning_rate).weight_decay(weight_decay)
@@ -286,12 +286,12 @@ private:
 		std::cout << "Optimizer built (Adam, lr=" << learning_rate << ", wd=" << weight_decay << ")" << std::endl;
 	}
 
-	const ANNType modelType;  // Ä£ĞÍÀàĞÍ£¨ÆÕÍ¨MLP£¬´ødropoutµÄMLP£¬´øL2ÕıÔò»¯µÄMLP£¬Éî²ãMLP£©
-	const size_t numX;  // ÌØÕ÷ÊıÁ¿£¨ÔÚ¶ÔÏó´´½¨Ç°±ØĞëÈ·¶¨£©
+	const ANNType modelType;  // æ¨¡å‹ç±»å‹ï¼ˆæ™®é€šMLPï¼Œå¸¦dropoutçš„MLPï¼Œå¸¦L2æ­£åˆ™åŒ–çš„MLPï¼Œæ·±å±‚MLPï¼‰
+	const size_t numX;  // ç‰¹å¾æ•°é‡ï¼ˆåœ¨å¯¹è±¡åˆ›å»ºå‰å¿…é¡»ç¡®å®šï¼‰
 
-	// ¹éÒ»»¯²ÎÊı (Mean, Std)
-	torch::Tensor input_mean;  // x µÄ¾ùÖµ
-	torch::Tensor input_std;   // y µÄ±ê×¼²î
-	torch::Tensor target_mean; // y µÄ¾ùÖµ
-    torch::Tensor target_std;  // y µÄ±ê×¼²î
+	// å½’ä¸€åŒ–å‚æ•° (Mean, Std)
+	torch::Tensor input_mean;  // x çš„å‡å€¼
+	torch::Tensor input_std;   // y çš„æ ‡å‡†å·®
+	torch::Tensor target_mean; // y çš„å‡å€¼
+    torch::Tensor target_std;  // y çš„æ ‡å‡†å·®
 };

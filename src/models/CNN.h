@@ -1,9 +1,9 @@
 #pragma once
 #include <opencv2/opencv.hpp>
 #include "NeuralNetwork.h"
-#include "CNN_model.h"
+#include "CNNModels.h"
 
-// Ã¶¾ÙCNN£¨ÔİÊ±£©ËùÓĞµÄÄ£ĞÍÀàĞÍ
+// æšä¸¾CNNï¼ˆæš‚æ—¶ï¼‰æ‰€æœ‰çš„æ¨¡å‹ç±»å‹
 enum class CNNType {
 	LeNet,
 	AlexNet,
@@ -11,36 +11,36 @@ enum class CNNType {
 	ResNet
 };
 
-// ¾í»ıÉñ¾­ÍøÂç£¨ÓÃÓÚ´¦ÀíÍ¼ÏñÈÎÎñ£©
+// å·ç§¯ç¥ç»ç½‘ç»œï¼ˆç”¨äºå¤„ç†å›¾åƒä»»åŠ¡ï¼‰
 class CNN : public NeuralNetwork {
 public:
-	// ¹¹Ôìº¯Êı£¨Ä£ĞÍ×´Ì¬£¬ÈÎÎñÀàĞÍ£¬Ä£ĞÍÀàĞÍ£¬Êı¾İÂ·¾¶£¬Ä£ĞÍÃû³Æ£©
+	// æ„é€ å‡½æ•°ï¼ˆæ¨¡å‹çŠ¶æ€ï¼Œä»»åŠ¡ç±»å‹ï¼Œæ¨¡å‹ç±»å‹ï¼Œæ•°æ®è·¯å¾„ï¼Œæ¨¡å‹åç§°ï¼‰
 	explicit CNN(State s, Task t, CNNType m, const std::string& path, const std::string& model_id)
 		: NeuralNetwork(s, t, model_id), modelType(m) 
 	{
-		// ¼ì²éÈÎÎñÀàĞÍ£¬Èç¹ûÊÇ»Ø¹éÈÎÎñÔòÅ×³öÒì³£
+		// æ£€æŸ¥ä»»åŠ¡ç±»å‹ï¼Œå¦‚æœæ˜¯å›å½’ä»»åŠ¡åˆ™æŠ›å‡ºå¼‚å¸¸
 		if (t == Task::Regression) {
 			throw std::invalid_argument("Regression is not supported by CNN currently");
 		}
-		get_data_path(path);  // »ñÈ¡ÓÃ»§Ìá¹©µÄÂ·¾¶£¨Ë³±ã¼ì²éÂ·¾¶ÊÇ·ñºÏ·¨£©
+		get_data_path(path);  // è·å–ç”¨æˆ·æä¾›çš„è·¯å¾„ï¼ˆé¡ºä¾¿æ£€æŸ¥è·¯å¾„æ˜¯å¦åˆæ³•ï¼‰
 	}
 
-	// Îö¹¹º¯Êı
+	// ææ„å‡½æ•°
 	virtual ~CNN() = default;
-	// ½ûÓÃ ¸´ÖÆ¹¹Ôìº¯ÊıÓë¸³Öµ²Ù×÷·û
+	// ç¦ç”¨ å¤åˆ¶æ„é€ å‡½æ•°ä¸èµ‹å€¼æ“ä½œç¬¦
 	CNN(const CNN&) = delete; CNN& operator=(const CNN&) = delete;
-	// ÔÊĞí ÒÆ¶¯¹¹Ôìº¯Êı
+	// å…è®¸ ç§»åŠ¨æ„é€ å‡½æ•°
 	CNN(CNN&&) = default; CNN& operator=(CNN&&) = default;
 
 private:
-	// »ñÈ¡Ä£ĞÍÊı¾İÂ·¾¶£¨ÎÄ¼ş¼Ğ£©
+	// è·å–æ¨¡å‹æ•°æ®è·¯å¾„ï¼ˆæ–‡ä»¶å¤¹ï¼‰
 	void get_data_path(const std::string& path) override {
-		// ¼ì²éÓÃ»§Ìá¹©µÄÂ·¾¶ÊÇ·ñÎª¿Õ»ò²»´æÔÚ
+		// æ£€æŸ¥ç”¨æˆ·æä¾›çš„è·¯å¾„æ˜¯å¦ä¸ºç©ºæˆ–ä¸å­˜åœ¨
 		if (path.empty() || !fs::exists(path)) {
 			throw std::invalid_argument("Invalid path.");
 		}
 
-		// ¼ì²éÂ·¾¶ÊÇ·ñÎªÎÄ¼ş¼Ğ
+		// æ£€æŸ¥è·¯å¾„æ˜¯å¦ä¸ºæ–‡ä»¶å¤¹
 		if (fs::is_directory(path)) {
 			fs::path p(path);
 			p.make_preferred();
@@ -52,16 +52,16 @@ private:
 		}
 	}
 
-	// »ñÈ¡Ä£ĞÍÊı¾İ
+	// è·å–æ¨¡å‹æ•°æ®
 	void get_data() override {
 		std::cout << "Loading images from " << data_path << "..." << std::endl;
 
-		std::vector<torch::Tensor> x_list; // Ôİ´æÍ¼Ïñ Tensor
-		std::vector<int64_t> y_list;       // Ôİ´æ±êÇ©Ë÷Òı
+		std::vector<torch::Tensor> x_list; // æš‚å­˜å›¾åƒ Tensor
+		std::vector<int64_t> y_list;       // æš‚å­˜æ ‡ç­¾ç´¢å¼•
 
 		int total_samples = 0;
 
-		// ¶¨ÒåÖ§³ÖµÄÍ¼Æ¬À©Õ¹Ãû
+		// å®šä¹‰æ”¯æŒçš„å›¾ç‰‡æ‰©å±•å
 		const std::vector<std::string> valid_extensions = { ".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff" };
 		auto is_image = [&](const fs::path& p) {
 			std::string ext = p.extension().string();
@@ -72,18 +72,18 @@ private:
 			return false;
 			};
 
-		// --- Train / Test Ä£Ê½ ---
+		// --- Train / Test æ¨¡å¼ ---
 		if (state != State::Infer) {
 			for (const auto& entry : fs::directory_iterator(data_path)) {
 				if (!entry.is_directory()) continue;
 
 				std::string label_name = entry.path().filename().string();
-				int class_sample_count = 0; // µ±Ç°Àà±ğµÄÍ¼Æ¬¼ÆÊı
+				int class_sample_count = 0; // å½“å‰ç±»åˆ«çš„å›¾ç‰‡è®¡æ•°
 
-				// ´òÓ¡µ±Ç°ÕıÔÚ´¦ÀíµÄÀà±ğ
+				// æ‰“å°å½“å‰æ­£åœ¨å¤„ç†çš„ç±»åˆ«
 				std::cout << "[Class]: " << std::left << std::setw(15) << label_name << " ... " << std::flush;
 
-				// ´¦Àí±êÇ©Ó³Éä
+				// å¤„ç†æ ‡ç­¾æ˜ å°„
 				if (state == State::Train) {
 					if (label_map.find(label_name) == label_map.end()) {
 						label_map.emplace(label_name, label_map.size());
@@ -110,11 +110,11 @@ private:
 						class_sample_count++;
 					}
 				}
-				// ¸ÃÀà±ğ´¦ÀíÍê±Ï£¬Êä³öÊıÁ¿²¢»»ĞĞ
+				// è¯¥ç±»åˆ«å¤„ç†å®Œæ¯•ï¼Œè¾“å‡ºæ•°é‡å¹¶æ¢è¡Œ
 				std::cout << "Loaded: " << class_sample_count << " images." << std::endl;
 			}
 		}
-		// --- Infer Ä£Ê½ ---
+		// --- Infer æ¨¡å¼ ---
 		else {
 			for (const auto& entry : fs::directory_iterator(data_path)) {
 				if (!entry.is_regular_file()) continue;
@@ -126,14 +126,14 @@ private:
 					x_list.push_back(tensor_img);
 					total_samples++;
 
-					// Infer Ä£Ê½ÏÂÃ»ÓĞ×ÓÎÄ¼ş¼Ğ£¬Í¼Æ¬¿ÉÄÜºÜ¶à
-					// Ê¹ÓÃ \r ¶¯Ì¬¸üĞÂ¼ÆÊı£¬²»»»ĞĞ£¬±ÜÃâË¢ÆÁ
-					if (total_samples % 10 == 0) { // Ã¿10ÕÅË¢ĞÂÒ»´ÎÏÔÊ¾£¬¼õÉÙIOÑ¹Á¦
+					// Infer æ¨¡å¼ä¸‹æ²¡æœ‰å­æ–‡ä»¶å¤¹ï¼Œå›¾ç‰‡å¯èƒ½å¾ˆå¤š
+					// ä½¿ç”¨ \r åŠ¨æ€æ›´æ–°è®¡æ•°ï¼Œä¸æ¢è¡Œï¼Œé¿å…åˆ·å±
+					if (total_samples % 10 == 0) { // æ¯10å¼ åˆ·æ–°ä¸€æ¬¡æ˜¾ç¤ºï¼Œå‡å°‘IOå‹åŠ›
 						std::cout << "\rLoaded: " << total_samples << " images..." << std::flush;
 					}
 				}
 			}
-			// Ñ­»·½áÊøºó»»ĞĞ
+			// å¾ªç¯ç»“æŸåæ¢è¡Œ
 			std::cout << "\rLoaded: " << total_samples << " images. Done.   " << std::endl;
 		}
 
@@ -141,7 +141,7 @@ private:
 			throw std::runtime_error("No valid images found in path.");
 		}
 
-		// ×ª»»Îª Batch Tensor
+		// è½¬æ¢ä¸º Batch Tensor
 		data_x = torch::stack(x_list);
 
 		if (state != State::Infer) {
@@ -155,9 +155,9 @@ private:
 		std::cout << "--------------------------------------------------" << std::endl;
 	}
 
-	// ¸¨Öúº¯Êı£ºµ¥ÕÅÍ¼Æ¬´¦Àí
+	// è¾…åŠ©å‡½æ•°ï¼šå•å¼ å›¾ç‰‡å¤„ç†
 	torch::Tensor process_image(const std::string& img_path) {
-		// 1. OpenCV ¶ÁÈ¡ (BGR)
+		// 1. OpenCV è¯»å– (BGR)
 		cv::Mat img = cv::imread(img_path);
 		if (img.empty()) {
 			std::cerr << "Warning: Failed to read image: " << img_path << std::endl;
@@ -167,26 +167,26 @@ private:
 		// 2. Resize (224, 224)
 		cv::resize(img, img, cv::Size(224, 224));
 
-		// 3. ×ª»»ÑÕÉ«¿Õ¼ä BGR -> RGB (LibTorch Ä£ĞÍÍ¨³£Ô¤ÆÚ RGB)
+		// 3. è½¬æ¢é¢œè‰²ç©ºé—´ BGR -> RGB (LibTorch æ¨¡å‹é€šå¸¸é¢„æœŸ RGB)
 		cv::cvtColor(img, img, cv::COLOR_BGR2RGB);
 
-		// 4. ¹éÒ»»¯²¢×ª¸¡µã (0-255 -> 0.0-1.0)
+		// 4. å½’ä¸€åŒ–å¹¶è½¬æµ®ç‚¹ (0-255 -> 0.0-1.0)
 		img.convertTo(img, CV_32F, 1.0f / 255.0f);
 
-		// 5. ×ª»»Îª Tensor
-		// OpenCV ÄÚ´æ²¼¾ÖÊÇ HWC (Height, Width, Channels)
-		// LibTorch ¹¹ÔìÊ±ĞèÒª¸ù¾İ´Ë²¼¾Ö¶ÁÈ¡
+		// 5. è½¬æ¢ä¸º Tensor
+		// OpenCV å†…å­˜å¸ƒå±€æ˜¯ HWC (Height, Width, Channels)
+		// LibTorch æ„é€ æ—¶éœ€è¦æ ¹æ®æ­¤å¸ƒå±€è¯»å–
 		auto tensor = torch::from_blob(img.data, { 224, 224, 3 }, torch::kFloat32);
 
-		// 6. Î¬¶ÈÖØÅÅ: HWC -> CHW (Channels, Height, Width)
-		// clone() ÊÇ±ØĞëµÄ£¬ÒòÎª from_blob ²»ÓµÓĞÄÚ´æ£¬permute Ò²²»¿½±´ÄÚ´æ
-		// Èç¹û²» clone£¬µ± cv::Mat Îö¹¹ºó£¬Tensor Êı¾İ»áËğ»µ
+		// 6. ç»´åº¦é‡æ’: HWC -> CHW (Channels, Height, Width)
+		// clone() æ˜¯å¿…é¡»çš„ï¼Œå› ä¸º from_blob ä¸æ‹¥æœ‰å†…å­˜ï¼Œpermute ä¹Ÿä¸æ‹·è´å†…å­˜
+		// å¦‚æœä¸ cloneï¼Œå½“ cv::Mat ææ„åï¼ŒTensor æ•°æ®ä¼šæŸå
 		tensor = tensor.permute({ 2, 0, 1 }).clone();
 
 		return tensor;
 	}
 
-	// ¸¨Öúº¯Êı£º¹¹½¨Ä£ĞÍ
+	// è¾…åŠ©å‡½æ•°ï¼šæ„å»ºæ¨¡å‹
 	void build_model(int output_dim) override {
 		switch (modelType) {
 		case CNNType::LeNet:
@@ -205,19 +205,19 @@ private:
 			throw std::invalid_argument("Unknown CNNType");
 		}
 
-		// ×¢²áÄ£ĞÍ²ÎÊıÒÔ±ã LibTorch ×·×Ù
-		// ×¢Òâ£ºnn::AnyModule ×Ô¶¯´¦Àí£¬µ«Èç¹ûÊÇÊÖ¶¯¹ÜÀíĞè register_module
-		model.ptr()->to(torch::kFloat32); // È·±£ÊÇ Float ÀàĞÍ
+		// æ³¨å†Œæ¨¡å‹å‚æ•°ä»¥ä¾¿ LibTorch è¿½è¸ª
+		// æ³¨æ„ï¼šnn::AnyModule è‡ªåŠ¨å¤„ç†ï¼Œä½†å¦‚æœæ˜¯æ‰‹åŠ¨ç®¡ç†éœ€ register_module
+		model.ptr()->to(torch::kFloat32); // ç¡®ä¿æ˜¯ Float ç±»å‹
 		std::cout << "CNN Model built. Type: " << (int)modelType
 			   	  << ", Output Classes: " << output_dim << std::endl;
 	}
 
-	// ¸¨Öúº¯Êı£º¹¹½¨ÓÅ»¯Æ÷
+	// è¾…åŠ©å‡½æ•°ï¼šæ„å»ºä¼˜åŒ–å™¨
 	void build_optimizer() override {
 		double learning_rate = 0.001;
 
-		// CNN Í¨³£Ê¹ÓÃ Adam »ò SGD+Momentum
-		// ÕâÀïÊ¹ÓÃ Adam
+		// CNN é€šå¸¸ä½¿ç”¨ Adam æˆ– SGD+Momentum
+		// è¿™é‡Œä½¿ç”¨ Adam
 		optimizer = std::make_shared<torch::optim::Adam>(
 			model.ptr()->parameters(),
 			torch::optim::AdamOptions(learning_rate)
@@ -225,5 +225,5 @@ private:
 		std::cout << "Optimizer built (Adam, lr=" << learning_rate << ")" << std::endl;
 	}
 
-	const CNNType modelType;  // Ä£ĞÍÀàĞÍ£¨LeNet, AlexNet, VGGNet, ResNet£©
+	const CNNType modelType;  // æ¨¡å‹ç±»å‹ï¼ˆLeNet, AlexNet, VGGNet, ResNetï¼‰
 };

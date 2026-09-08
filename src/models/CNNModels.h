@@ -4,7 +4,7 @@
 namespace nn = torch::nn;
 
 // ---------------------------------------------------------
-// ¸¨Öúº¯Êı£º´´½¨Ò»¸ö 3x3 ¾í»ı²ã (ÓÃÓÚ ResNet)
+// è¾…åŠ©å‡½æ•°ï¼šåˆ›å»ºä¸€ä¸ª 3x3 å·ç§¯å±‚ (ç”¨äº ResNet)
 // ---------------------------------------------------------
 inline nn::Conv2d conv3x3(int64_t in_planes, int64_t out_planes, int64_t stride = 1, int64_t groups = 1, int64_t dilation = 1) {
     return nn::Conv2d(nn::Conv2dOptions(in_planes, out_planes, 3)
@@ -15,7 +15,7 @@ inline nn::Conv2d conv3x3(int64_t in_planes, int64_t out_planes, int64_t stride 
         .dilation(dilation));
 }
 
-// ¸¨Öúº¯Êı£º´´½¨Ò»¸ö 1x1 ¾í»ı²ã (ÓÃÓÚ ResNet ÏÂ²ÉÑù)
+// è¾…åŠ©å‡½æ•°ï¼šåˆ›å»ºä¸€ä¸ª 1x1 å·ç§¯å±‚ (ç”¨äº ResNet ä¸‹é‡‡æ ·)
 inline nn::Conv2d conv1x1(int64_t in_planes, int64_t out_planes, int64_t stride = 1) {
     return nn::Conv2d(nn::Conv2dOptions(in_planes, out_planes, 1)
         .stride(stride)
@@ -23,9 +23,9 @@ inline nn::Conv2d conv1x1(int64_t in_planes, int64_t out_planes, int64_t stride 
 }
 
 // ---------------------------------------------------------
-// Ä£ĞÍ 1: LeNet (ÊÊÅä°æ)
-// Ô­°æ LeNet-5 ÊÇÕë¶Ô 32x32 ÊäÈëÉè¼ÆµÄ¡£
-// ÎªÁËÊÊÅä 224x224 ÊäÈë£¬ÎÒÃÇÔÚ×îºóÔö¼ÓÁË×ÔÊÊÓ¦³Ø»¯²ã¡£
+// æ¨¡å‹ 1: LeNet (é€‚é…ç‰ˆ)
+// åŸç‰ˆ LeNet-5 æ˜¯é’ˆå¯¹ 32x32 è¾“å…¥è®¾è®¡çš„ã€‚
+// ä¸ºäº†é€‚é… 224x224 è¾“å…¥ï¼Œæˆ‘ä»¬åœ¨æœ€åå¢åŠ äº†è‡ªé€‚åº”æ± åŒ–å±‚ã€‚
 // ---------------------------------------------------------
 struct LeNet : nn::Module {
     nn::Conv2d conv1{ nullptr }, conv2{ nullptr };
@@ -40,9 +40,9 @@ struct LeNet : nn::Module {
         conv2 = register_module("conv2", nn::Conv2d(nn::Conv2dOptions(6, 16, 5)));
 
         // Fully Connected Layers
-        // Ê¹ÓÃ 16 * 53 * 53 »áµ¼ÖÂ²ÎÊı¹ı´ó£¬Í¨³£ LeNet ²»ÊÊºÏ´¦ÀíÕâÃ´´óµÄÍ¼¡£
-        // µ«ÎªÁËÑİÊ¾£¬ÎÒÃÇ±£³Ö½á¹¹¡£¸üºÃµÄ×ö·¨ÊÇÔÚ fc1 Ç°¼Ó AdaptiveAvgPool2d((5,5))
-        // ÕâÑùÕ¹Æ½ºó¾ÍÊÇ 16 * 5 * 5 = 400£¬»Ø¹é¾­µä LeNet ¹æÄ£
+        // ä½¿ç”¨ 16 * 53 * 53 ä¼šå¯¼è‡´å‚æ•°è¿‡å¤§ï¼Œé€šå¸¸ LeNet ä¸é€‚åˆå¤„ç†è¿™ä¹ˆå¤§çš„å›¾ã€‚
+        // ä½†ä¸ºäº†æ¼”ç¤ºï¼Œæˆ‘ä»¬ä¿æŒç»“æ„ã€‚æ›´å¥½çš„åšæ³•æ˜¯åœ¨ fc1 å‰åŠ  AdaptiveAvgPool2d((5,5))
+        // è¿™æ ·å±•å¹³åå°±æ˜¯ 16 * 5 * 5 = 400ï¼Œå›å½’ç»å…¸ LeNet è§„æ¨¡
 
         fc1 = register_module("fc1", nn::Linear(16 * 5 * 5, 120));
         fc2 = register_module("fc2", nn::Linear(120, 84));
@@ -55,7 +55,7 @@ struct LeNet : nn::Module {
         // Conv 2
         x = torch::max_pool2d(torch::relu(conv2(x)), 2);
 
-        // Ç¿ĞĞ½«ÌØÕ÷Í¼³Ø»¯µ½ 5x5 ´óĞ¡£¬ÒÔ±ãÏÎ½ÓÈ«Á¬½Ó²ã£¬±ÜÃâÏÔ´æ±¬Õ¨
+        // å¼ºè¡Œå°†ç‰¹å¾å›¾æ± åŒ–åˆ° 5x5 å¤§å°ï¼Œä»¥ä¾¿è¡”æ¥å…¨è¿æ¥å±‚ï¼Œé¿å…æ˜¾å­˜çˆ†ç‚¸
         x = torch::adaptive_avg_pool2d(x, { 5, 5 });
 
         // Flatten
@@ -70,15 +70,15 @@ struct LeNet : nn::Module {
 };
 
 // ---------------------------------------------------------
-// Ä£ĞÍ 2: AlexNet
-// ¾­µäµÄÉî¶È¾í»ıÍøÂç£¬°üº¬ 5 ²ã¾í»ıºÍ 3 ²ãÈ«Á¬½Ó
+// æ¨¡å‹ 2: AlexNet
+// ç»å…¸çš„æ·±åº¦å·ç§¯ç½‘ç»œï¼ŒåŒ…å« 5 å±‚å·ç§¯å’Œ 3 å±‚å…¨è¿æ¥
 // ---------------------------------------------------------
 struct AlexNet : nn::Module {
     nn::Sequential features{ nullptr };
     nn::Sequential classifier{ nullptr };
 
     explicit AlexNet(int64_t num_classes) {
-        // ÌØÕ÷ÌáÈ¡²¿·Ö
+        // ç‰¹å¾æå–éƒ¨åˆ†
         features = register_module("features", nn::Sequential(
             // Conv 1
             nn::Conv2d(nn::Conv2dOptions(3, 64, 11).stride(4).padding(2)),
@@ -104,7 +104,7 @@ struct AlexNet : nn::Module {
             nn::MaxPool2d(nn::MaxPool2dOptions(3).stride(2))
         ));
 
-        // ·ÖÀàÆ÷²¿·Ö
+        // åˆ†ç±»å™¨éƒ¨åˆ†
         classifier = register_module("classifier", nn::Sequential(
             nn::Dropout(0.5),
             nn::Linear(256 * 6 * 6, 4096),
@@ -120,7 +120,7 @@ struct AlexNet : nn::Module {
 
     torch::Tensor forward(torch::Tensor x) {
         x = features->forward(x);
-        // ×ÔÊÊÓ¦³Ø»¯È·±£Êä³öÊÇ 6x6£¬Æ¥Åä Linear µÄÊäÈë (256*6*6)
+        // è‡ªé€‚åº”æ± åŒ–ç¡®ä¿è¾“å‡ºæ˜¯ 6x6ï¼ŒåŒ¹é… Linear çš„è¾“å…¥ (256*6*6)
         x = torch::adaptive_avg_pool2d(x, { 6, 6 });
         x = x.view({ x.size(0), -1 });
         x = classifier->forward(x);
@@ -129,8 +129,8 @@ struct AlexNet : nn::Module {
 };
 
 // ---------------------------------------------------------
-// Ä£ĞÍ 3: VGGNet (VGG-16)
-// Ê¹ÓÃ´óÁ¿ 3x3 Ğ¡¾í»ıºË¶Ñµş
+// æ¨¡å‹ 3: VGGNet (VGG-16)
+// ä½¿ç”¨å¤§é‡ 3x3 å°å·ç§¯æ ¸å †å 
 // ---------------------------------------------------------
 struct VGGNet : nn::Module {
     nn::Sequential features{ nullptr };
@@ -188,11 +188,11 @@ struct VGGNet : nn::Module {
 };
 
 // ---------------------------------------------------------
-// Ä£ĞÍ 4: ResNet (ResNet-18)
-// Ê¹ÓÃ²Ğ²î¿é (Residual Block)
+// æ¨¡å‹ 4: ResNet (ResNet-18)
+// ä½¿ç”¨æ®‹å·®å— (Residual Block)
 // ---------------------------------------------------------
 
-// ResNet µÄ»ù´¡²Ğ²î¿é
+// ResNet çš„åŸºç¡€æ®‹å·®å—
 struct BasicBlock : nn::Module {
     nn::Conv2d conv1{ nullptr }, conv2{ nullptr };
     nn::BatchNorm2d bn1{ nullptr }, bn2{ nullptr };
@@ -204,7 +204,7 @@ struct BasicBlock : nn::Module {
         conv2 = register_module("conv2", conv3x3(planes, planes));
         bn2 = register_module("bn2", nn::BatchNorm2d(planes));
 
-        // Èç¹û²½³¤²»Îª1»òÕßÊäÈëÊä³öÍ¨µÀÊı²»Ò»ÖÂ£¬ĞèÒªÏÂ²ÉÑùµ÷ÕûÎ¬¶È£¬ÒÔ±ãÏà¼Ó
+        // å¦‚æœæ­¥é•¿ä¸ä¸º1æˆ–è€…è¾“å…¥è¾“å‡ºé€šé“æ•°ä¸ä¸€è‡´ï¼Œéœ€è¦ä¸‹é‡‡æ ·è°ƒæ•´ç»´åº¦ï¼Œä»¥ä¾¿ç›¸åŠ 
         if (stride != 1 || inplanes != planes) {
             downsample = register_module("downsample", nn::Sequential(
                 conv1x1(inplanes, planes, stride),
@@ -235,7 +235,7 @@ struct BasicBlock : nn::Module {
     }
 };
 
-// ResNet-18 Ö÷Ìå
+// ResNet-18 ä¸»ä½“
 struct ResNet : nn::Module {
     int64_t inplanes = 64;
     nn::Conv2d conv1{ nullptr };
@@ -258,14 +258,14 @@ struct ResNet : nn::Module {
         fc = register_module("fc", nn::Linear(512, num_classes));
     }
 
-    // ¸¨Öúº¯Êı£º¹¹½¨°üº¬¶à¸ö BasicBlock µÄ²ã
+    // è¾…åŠ©å‡½æ•°ï¼šæ„å»ºåŒ…å«å¤šä¸ª BasicBlock çš„å±‚
     nn::Sequential make_layer(int64_t planes, int64_t blocks, int64_t stride = 1) {
         nn::Sequential layers;
-        // µÚÒ»¸ö block ¸ºÔğ¸Ä±ä stride (½µ²ÉÑù)
+        // ç¬¬ä¸€ä¸ª block è´Ÿè´£æ”¹å˜ stride (é™é‡‡æ ·)
         layers->push_back(BasicBlock(inplanes, planes, stride));
         inplanes = planes;
 
-        // ºóĞø block stride ¾ùÎª 1
+        // åç»­ block stride å‡ä¸º 1
         for (int64_t i = 1; i < blocks; ++i) {
             layers->push_back(BasicBlock(inplanes, planes));
         }
