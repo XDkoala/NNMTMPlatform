@@ -110,7 +110,7 @@ TrainingWindow::TrainingWindow(ModelInfo info, QWidget* parent)
     mainLayout->addLayout(btnLayout);
 
     // 5. Worker 连接
-    worker = new TrainingWorker(m_info); // 创建训练线程
+    worker = new TrainingWorker(m_info, this); // 创建训练线程
 
     // 连接信号槽：更新进度条、状态、图表
     connect(worker, &TrainingWorker::progressUpdated, progressBar, &QProgressBar::setValue);
@@ -119,12 +119,19 @@ TrainingWindow::TrainingWindow(ModelInfo info, QWidget* parent)
 
     // 连接训练完成信号
     connect(worker, &TrainingWorker::trainingFinished, this,
-        [=]() {
-            this->onFinished(); // 处理完成逻辑
-            // 如果状态包含错误信息，弹出警告
-            if (statusLabel->text().contains("出错") || statusLabel->text().contains("Error")) {
+        [=](bool success, bool cancelled) {
+            if (success) {
+                this->onFinished();
+            } else if (cancelled) {
+                try {
+                    DatabaseManager::instance().deleteModel(m_info.id);
+                } catch (const std::exception& error) {
+                    QMessageBox::warning(this, "清理失败", QString::fromUtf8(error.what()));
+                }
+                reject();
+            } else {
                 QMessageBox::critical(this, "训练失败", statusLabel->text() + "\n请检查数据格式是否符合要求。");
-                saveBtn->setEnabled(false); // 保持禁用
+                saveBtn->setEnabled(false);
             }
         }
     );
@@ -132,8 +139,10 @@ TrainingWindow::TrainingWindow(ModelInfo info, QWidget* parent)
     // 取消按钮逻辑
     connect(cancelBtn, &QPushButton::clicked, [=]() {
         if (QMessageBox::question(this, "确认", "确定要取消训练并删除模型吗？") == QMessageBox::Yes) {
-            worker->terminate(); // 终止线程
-            reject(); // 关闭窗口返回 Reject
+            worker->requestInterruption();
+            cancelBtn->setEnabled(false);
+            saveBtn->setEnabled(false);
+            statusLabel->setText("正在安全取消训练...");
         }
         });
 
@@ -144,6 +153,13 @@ TrainingWindow::TrainingWindow(ModelInfo info, QWidget* parent)
         });
 
     worker->start(); // 启动线程
+}
+
+TrainingWindow::~TrainingWindow() {
+    if (worker && worker->isRunning()) {
+        worker->requestInterruption();
+        worker->wait();
+    }
 }
 
 // 更新图表和表格的槽函数

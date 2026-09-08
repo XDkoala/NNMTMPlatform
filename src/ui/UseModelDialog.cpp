@@ -41,7 +41,7 @@ UseModelDialog::UseModelDialog(ModelInfo info, bool isTestMode, QWidget* parent)
         resultArea->append("正在初始化引擎...");
 
         // 创建推理线程
-        InferenceWorker* worker = new InferenceWorker(m_info, isTestMode, pathEdit->text());
+        worker = new InferenceWorker(m_info, isTestMode, pathEdit->text(), this);
 
         // 绑定信号
         connect(worker, &InferenceWorker::progressUpdated, progressBar, &QProgressBar::setValue);
@@ -54,10 +54,13 @@ UseModelDialog::UseModelDialog(ModelInfo info, bool isTestMode, QWidget* parent)
             });
 
         // 绑定完成信号
-        connect(worker, &InferenceWorker::inferenceFinished, this, [=]() {
-            progressBar->setValue(100);
-            QMessageBox::information(this, "完成", "处理完成！");
-            worker->deleteLater(); // 清理线程对象
+        connect(worker, &InferenceWorker::inferenceFinished, this, [=](bool success, bool cancelled) {
+            if (success) {
+                progressBar->setValue(100);
+                QMessageBox::information(this, "完成", "处理完成！");
+            } else if (!cancelled) {
+                QMessageBox::critical(this, "处理失败", "处理未完成，请检查上方错误信息。");
+            }
 
             actionBtn->setText("返回");  // 改变按钮行为为“返回”
             actionBtn->setEnabled(true);
@@ -84,4 +87,11 @@ UseModelDialog::UseModelDialog(ModelInfo info, bool isTestMode, QWidget* parent)
         actionBtn->setEnabled(false); // 禁用按钮防止重复点击
         worker->start(); // 启动线程
         });
+}
+
+UseModelDialog::~UseModelDialog() {
+    if (worker && worker->isRunning()) {
+        worker->requestInterruption();
+        worker->wait();
+    }
 }

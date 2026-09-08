@@ -87,6 +87,7 @@ private:
 
 		// 读取每一行数据
 		while (std::getline(file, line)) {
+			throw_if_cancelled();
 			if (line.empty()) continue; // 跳过空行
 			std::istringstream stream(line);
 
@@ -129,17 +130,23 @@ private:
 					y_data_long.push_back(label_map[label]);  // 存储整数标签
 				}
 
-				// 检查行尾是否有多余字符
-				std::string extra_content;
-				// 尝试再读一个字符串。stream会自动跳过前面的空白符。如果还能读到东西，说明有非法残留数据。
-				if (stream >> extra_content) {
-					throw std::invalid_argument("Extra data found in line " + std::to_string(line_count + 1) +
-						". Expected end of line, but found: '" + extra_content + "'");
-				}
+			}
+
+			// Train、Test 和 Infer 都不允许期望字段之后还有额外内容。
+			std::string extra_content;
+			if (stream >> extra_content) {
+				throw std::invalid_argument("Extra data found in line " + std::to_string(line_count + 1) +
+					". Expected end of line, but found: '" + extra_content + "'");
 			}
 			++line_count;
 		}
 		file.close();
+		if (line_count == 0) {
+			throw std::invalid_argument("The data file contains no samples.");
+		}
+		if (state == State::Train && line_count < 2) {
+			throw std::invalid_argument("Training requires at least two samples.");
+		}
 
 		// 将读取到的数据转换为 torch::Tensor
 		// 特征数据，大小为 (m, n)
@@ -162,7 +169,7 @@ private:
 			// 计算均值和标准差（沿着 dim=0，即列方向计算）
 			// 处理特征 X
 			input_mean = data_x.mean(0);
-            input_std = data_x.std(0);
+			input_std = data_x.std(0, false);
 				// 处理标准差为 0 的情况（防止除以 0），如果某列特征值完全相同，std 为 0，此时将其设为 1，避免 NaN
             input_std = torch::where(input_std == 0, torch::ones_like(input_std), input_std);
             data_x = (data_x - input_mean) / input_std;
@@ -170,7 +177,7 @@ private:
 			// 处理标签 Y（仅针对回归任务）
             if (taskType == Task::Regression) {
                 target_mean = data_y.mean(0);
-                target_std = data_y.std(0);
+				target_std = data_y.std(0, false);
                 // 防止 std 为 0 (虽然在回归标签中很少见，但为了健壮性)
                 target_std = torch::where(target_std == 0, torch::ones_like(target_std), target_std);
                 
@@ -226,14 +233,6 @@ private:
 				throw std::runtime_error("Normalization stats file not found at: " + norm_path.string() +
 					"\nMake sure to train the model first to generate normalization statistics.");
 			}
-		}
-
-		// 目标值数据，大小为 (m, 1)，根据任务类型决定 Tensor 类型
-		if (state != State::Infer) {
-			if (taskType == Task::Regression)  // 回归用 Float
-				data_y = torch::tensor(y_data_float).view({ (int64_t)line_count, 1 });
-			else                                  // 分类用 Long
-				data_y = torch::tensor(y_data_long).view({ (int64_t)line_count, 1 });
 		}
 
 		std::cout << "Data loaded. Samples: " << line_count << ", Features: " << numX << std::endl;

@@ -107,6 +107,7 @@ class TrainingWindow : public QDialog {
 public:
     // 构造函数
     TrainingWindow(ModelInfo info, QWidget* parent = nullptr);
+    ~TrainingWindow() override;
 private slots:
     // 槽函数：更新图表和数据
     void updateChart(int step, double trainLoss, double valLoss);
@@ -155,10 +156,12 @@ class UseModelDialog : public QDialog {
 public:
     // 构造函数，isTestMode 决定是测试模式还是使用模式
     UseModelDialog(ModelInfo info, bool isTestMode, QWidget* parent = nullptr);
+    ~UseModelDialog() override;
 private:
     ModelInfo m_info; // 模型信息
     QLineEdit* pathEdit; // 数据路径输入框
     QProgressBar* progressBar; // 进度条
+    InferenceWorker* worker = nullptr;
 };
 
 // 回归分析交互框 (显示预测 vs 真实散点图)

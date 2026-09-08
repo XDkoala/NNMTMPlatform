@@ -8,7 +8,10 @@
 #include <vector>
 #include <unordered_map>
 #include <sstream>
+#include <functional>
+#include <limits>
 #include <torch/torch.h>
+#include "TrainingUtils.h"
 
 namespace fs = std::filesystem;
 
@@ -26,6 +29,11 @@ enum class Task {
 	MultiClassification  // 多分类
 };
 
+class OperationCancelled : public std::runtime_error {
+public:
+	explicit OperationCancelled() : std::runtime_error("Operation cancelled.") {}
+};
+
 // 神经网络基类
 class NeuralNetwork {
 public:
@@ -36,6 +44,7 @@ public:
 	using ResultCallback = std::function<void(const std::string&, bool)>;
 	// 进度回调类型
     using ProgressCallback = std::function<void(int)>;
+	using CancellationCallback = std::function<bool()>;
 
 	// 构造函数，只允许显式转换
 	explicit NeuralNetwork(State s, Task t, const std::string& model_id)
@@ -49,10 +58,12 @@ public:
 	}
 	
 	// 设置回调函数 (供前端 Worker 调用)
-	void set_callbacks(LogCallback log_cb, ResultCallback res_cb, ProgressCallback prog_cb) {
+	void set_callbacks(LogCallback log_cb, ResultCallback res_cb, ProgressCallback prog_cb,
+		CancellationCallback cancel_cb = nullptr) {
 		this->logger = log_cb;
 		this->result_sender = res_cb;
 		this->progress_reporter = prog_cb;
+		this->cancellation_requested = cancel_cb;
 	}
 
 	// 析构函数
@@ -73,12 +84,14 @@ public:
 
 	// 开始执行（将训练、测试、推理功能集合在一起）
 	void conduct() {
+		throw_if_cancelled();
 		// 1. 获取数据/标签编码
 		// 由于Test状态下获取数据的过程需要用到标签编码，所以获取数据应该放在后面
 		if (state != State::Train && taskType != Task::Regression) {
 			get_label();  // 获取标签编码
 		}
 		get_data();  // 获取数据
+		throw_if_cancelled();
 
 		// 2. 初始化模型 (构建 模型 与 优化器)
 		if (taskType == Task::MultiClassification) {
@@ -88,9 +101,11 @@ public:
 			build_model(1);  // 回归和二分类输出维度均为 1
 		}
 		build_optimizer();  // 构建优化器
+		throw_if_cancelled();
 
 		// 3. 获取参数（通常需要先构建模型结构，再加载参数）
 		if (state != State::Train) get_parameters();
+		throw_if_cancelled();
 
 		// 4. 开始正式训练 / 测试 / 推理
 		if (state == State::Train) train();
@@ -115,6 +130,12 @@ public:
 	std::vector<int64_t> last_test_targets_indices;
 
 protected:
+	void throw_if_cancelled() const {
+		if (cancellation_requested && cancellation_requested()) {
+			throw OperationCancelled();
+		}
+	}
+
 	// 辅助函数：统一输出日志
 	void log_msg(const std::string& msg, bool is_error = false) {
 		std::cout << msg << std::endl;  // 依然打印到控制台
@@ -126,18 +147,31 @@ protected:
 		//std::cout << "Starting Training..." << std::endl;
 		log_msg("Starting Training...");
 
-		int64_t num_total = data_x.size(0); // 样本总数
-		if (num_total == 0) throw std::runtime_error("No training data found.");
+		const int64_t num_total = data_x.size(0); // 样本总数
+		if (num_total < 2) throw std::runtime_error("Training requires at least two samples.");
 
-		// 划分训练集和验证集 (9:1)
-		int64_t num_val = num_total * 0.1; // 10% 做验证
-		if (num_val < 1) num_val = 1;      // 确保至少有1个验证样本
-		int64_t num_train = num_total - num_val;
+		torch::manual_seed(42);
+		nnmtm::IndexSplit split;
+		if (taskType == Task::Regression) {
+			split = nnmtm::makeRandomSplit(static_cast<std::size_t>(num_total));
+		} else {
+			auto labels = data_y.reshape({-1}).to(torch::kCPU).to(torch::kLong).contiguous();
+			std::vector<std::int64_t> labelValues(labels.numel());
+			std::copy_n(labels.data_ptr<std::int64_t>(), labels.numel(), labelValues.begin());
+			split = nnmtm::makeStratifiedSplit(labelValues);
+			if (taskType == Task::BinaryClassification) {
+				std::unordered_map<std::int64_t, bool> uniqueLabels;
+				for (const auto label : labelValues) uniqueLabels[label] = true;
+				if (uniqueLabels.size() != 2) {
+					throw std::runtime_error("Binary classification requires exactly two classes.");
+				}
+			}
+		}
 
-		// 生成随机索引并切分
-		auto rand_indices = torch::randperm(num_total, torch::kLong);
-		auto train_indices_all = rand_indices.slice(0, 0, num_train);  // 训练集索引池
-		auto val_indices = rand_indices.slice(0, num_train, num_total); // 验证集索引 (固定)
+		const int64_t num_train = static_cast<int64_t>(split.train.size());
+		const int64_t num_val = static_cast<int64_t>(split.validation.size());
+		auto train_indices_all = torch::tensor(split.train, torch::kLong);
+		auto val_indices = torch::tensor(split.validation, torch::kLong);
 
 		// 准备验证集数据 (放在循环外，避免重复切片)
 		auto val_x = data_x.index_select(0, val_indices);
@@ -156,6 +190,8 @@ protected:
 
 		// 状态变量
 		double best_val_loss = std::numeric_limits<double>::max();
+		std::vector<torch::Tensor> best_parameters;
+		std::vector<torch::Tensor> best_buffers;
 		int trigger_times = 0;             // 计数器：记录 Loss 未改善的次数
 		bool early_stopped = false;        // 标记是否触发了早停
 		std::vector<double> loss_history;  // 记录最近的 Loss 用于最终分析
@@ -164,6 +200,7 @@ protected:
 
 		// 开始训练循环
 		for (int epoch = 0; epoch < max_epochs; ++epoch) {
+			throw_if_cancelled();
 			// 每个 Epoch 只打乱训练集的索引
 			auto epoch_shuffled_indices = torch::randperm(num_train, torch::kLong);
 			// 映射回原始数据索引
@@ -177,6 +214,7 @@ protected:
 
 			// Mini-batch 循环
 			for (int64_t i = 0; i < num_train; i += batch_size) {
+				throw_if_cancelled();
 				// 当前 Batch 的结束索引
 				int64_t end_idx = std::min(i + batch_size, num_train);
 
@@ -270,6 +308,14 @@ protected:
 				// 如果当前 Loss 比历史最佳 Loss 还要小且超过阈值，说明模型还在学
 				best_val_loss = current_val_loss;
 				trigger_times = 0; // 重置计数器
+				best_parameters.clear();
+				best_buffers.clear();
+				for (const auto& parameter : model.ptr()->parameters()) {
+					best_parameters.push_back(parameter.detach().clone());
+				}
+				for (const auto& buffer : model.ptr()->buffers()) {
+					best_buffers.push_back(buffer.detach().clone());
+				}
 			}
 			else {
 				// Loss 没有显著下降
@@ -289,6 +335,22 @@ protected:
 				}
 			}
 		}
+
+		if (best_parameters.empty()) {
+			throw std::runtime_error("Training did not produce a valid model checkpoint.");
+		}
+		{
+			torch::NoGradGuard no_grad;
+			auto parameters = model.ptr()->parameters();
+			auto buffers = model.ptr()->buffers();
+			for (std::size_t i = 0; i < parameters.size(); ++i) {
+				parameters[i].copy_(best_parameters[i]);
+			}
+			for (std::size_t i = 0; i < buffers.size(); ++i) {
+				buffers[i].copy_(best_buffers[i]);
+			}
+		}
+		log_msg("Restored the best validation checkpoint before saving.");
 
 		// 检测最终是否收敛（针对没有触发早停的情况）
 		if (!early_stopped) {
@@ -324,6 +386,7 @@ protected:
 
 	// 测试模式
 	void test() {
+		throw_if_cancelled();
 		//std::cout << "Starting Testing...\n" << std::endl;
 		log_msg("Starting Testing...");
 		// 先调用 predict() 获取预测值，再与目标值 data_y 进行比对
@@ -381,6 +444,7 @@ protected:
             auto targets_a = targets_real.accessor<float, 2>(); // 使用真实值
 
 			for (int i = 0; i < total_samples; ++i) {
+				throw_if_cancelled();
 				//float p = preds_a[i][0];
 				//float t = targets_a[i][0];
 				//float r = p - t;
@@ -431,6 +495,7 @@ protected:
 			auto t_data = true_labels.accessor<int64_t, 1>();
 
 			for (int i = 0; i < num_samples; ++i) {
+				throw_if_cancelled();
 				if (p_data[i] == t_data[i]) {
 					correct_count++;
 				}
@@ -452,6 +517,7 @@ protected:
 			auto targets_data = targets_cpu.accessor<int64_t, 1>();
 
 			for (int i = 0; i < preds_cpu.size(0); ++i) {
+				throw_if_cancelled();
 				last_test_preds_indices.push_back(preds_data[i]);
 				last_test_targets_indices.push_back(targets_data[i]);
 			}
@@ -467,6 +533,7 @@ protected:
 			std::vector<int> fn(num_classes, 0);
 
 			for (int i = 0; i < num_samples; ++i) {
+				throw_if_cancelled();
 				int p = p_data[i]; // 预测类别
 				int t = t_data[i]; // 真实类别
 
@@ -539,6 +606,7 @@ protected:
 
 	// 推理模式
 	void infer() {
+		throw_if_cancelled();
 		//std::cout << "Starting Inference..." << std::endl;
 		log_msg("Starting Inference...");
 
@@ -558,6 +626,7 @@ protected:
 		if (taskType == Task::Regression) {  // 回归任务：直接输出数值
 			auto accessor = preds_real.accessor<float, 2>();
 			for (int i = 0; i < preds_real.size(0); ++i) {
+				throw_if_cancelled();
 				//std::cout << "Sample " << (i + 1) << ": " << accessor[i][0] << std::endl;
 				std::ostringstream oss;
 				oss << "Sample " << (i + 1) << ": " << accessor[i][0];
@@ -584,6 +653,7 @@ protected:
 
 			auto accessor = result_indices.accessor<int64_t, 1>();
 			for (int i = 0; i < result_indices.size(0); ++i) {
+				throw_if_cancelled();
 				int64_t idx = accessor[i];
 				std::string label_name = "Unknown";
 				if (idx_to_label.find(idx) != idx_to_label.end()) {
@@ -742,6 +812,7 @@ protected:
 
 	// 推理步骤
 	torch::Tensor predict() {
+		throw_if_cancelled();
 		// 检查模型是否存在
 		if (model.is_empty())
 			throw std::runtime_error("Model not initialized.");
@@ -791,7 +862,7 @@ protected:
 			std::cout << "Model saved successfully to: " << save_path << std::endl;
 		}
 		catch (const std::exception& e) {
-			std::cerr << "Error saving model: " << e.what() << std::endl;
+			throw std::runtime_error("Failed to save model: " + std::string(e.what()));
 		}
 	}
 	
@@ -835,6 +906,7 @@ protected:
 	LogCallback logger = nullptr;       		   // 日志回调
 	ResultCallback result_sender = nullptr; 	   // 结果回调
 	ProgressCallback progress_reporter = nullptr;  // 进度回调
+	CancellationCallback cancellation_requested = nullptr;
 
 	fs::path data_path;  // 模型数据数据路径（不同状态下，数据的意义不同）
 	fs::path parameters_path; // 模型参数路径

@@ -4,6 +4,19 @@
 #include <QFileDialog> // 包含文件选择对话框类
 #include <QDebug> // 包含调试输出类
 
+namespace {
+bool saveModelWithFeedback(QWidget* parent, const ModelInfo& model) {
+    try {
+        DatabaseManager::instance().saveModel(model);
+        return true;
+    } catch (const std::exception& error) {
+        QMessageBox::critical(parent, "保存失败",
+            "模型信息未能写入磁盘：\n" + QString::fromUtf8(error.what()));
+        return false;
+    }
+}
+}
+
 // ==================== MainWindow Implementation ====================
 // 主窗口实现
 
@@ -135,12 +148,12 @@ void MainWindow::onAddNewModel() {
     AddModelDialog dialog(allModels.size(), nullptr, this); // 打开添加对话框
     int res = dialog.exec();
     if (res == QDialog::Accepted) { // 训练完成
-        DatabaseManager::instance().saveModel(dialog.resultInfo); // 保存
+        if (!saveModelWithFeedback(this, dialog.resultInfo)) return;
         allModels.append(dialog.resultInfo); // 添加到列表
         refreshModelList(); // 刷新
     }
     else if (res == 2) { // 保存为草稿
-        DatabaseManager::instance().saveModel(dialog.resultInfo);
+        if (!saveModelWithFeedback(this, dialog.resultInfo)) return;
         draftBox.append(dialog.resultInfo);
     }
 }
@@ -152,7 +165,7 @@ void MainWindow::modifyModel(QString id) {
     if (it != allModels.end()) {
         ModifyModelDialog dlg(*it, this); // 打开修改对话框
         if (dlg.exec() == QDialog::Accepted) {
-            DatabaseManager::instance().saveModel(*it); // 保存更新
+            if (!saveModelWithFeedback(this, *it)) return;
             refreshModelList(); // 刷新
             QMessageBox::information(this, "成功", "模型信息已更新");
         }
@@ -180,7 +193,10 @@ void MainWindow::deleteModel(QString id) {
     if (it != allModels.end()) {
         if (QMessageBox::question(this, "删除", "确认将模型放入回收站？") == QMessageBox::Yes) {
             it->status = ModelStatus::Deleted; // 改变状态
-            DatabaseManager::instance().saveModel(*it); // 保存状态改变
+            if (!saveModelWithFeedback(this, *it)) {
+                it->status = ModelStatus::Trained;
+                return;
+            }
             recycleBin.append(*it); // 移入回收站列表
             allModels.erase(it); // 从主列表移除
             refreshModelList(); // 刷新
@@ -204,7 +220,7 @@ void MainWindow::retrainModel(QString id) {
 
             if (res == QDialog::Accepted) {
                 // 1. 保存新模型 (ID 是新的)
-                DatabaseManager::instance().saveModel(dialog.resultInfo);
+                if (!saveModelWithFeedback(this, dialog.resultInfo)) return;
 
                 // 2. 物理删除旧模型
                 DatabaseManager::instance().deleteModel(oldInfo.id);
@@ -220,7 +236,7 @@ void MainWindow::retrainModel(QString id) {
                 refreshModelList(); // 刷新
             }
             else if (res == 2) { // 存为草稿
-                DatabaseManager::instance().saveModel(dialog.resultInfo);
+                if (!saveModelWithFeedback(this, dialog.resultInfo)) return;
                 draftBox.append(dialog.resultInfo);
             }
         }
@@ -237,8 +253,12 @@ void MainWindow::onOpenRecycleBin() {
     RecycleBinDialog dlg(&recycleBin, &allModels, this); // 传入列表指针
     dlg.exec();
     // 退出回收站后，保存所有更改到文件系统
-    for (const auto& m : allModels) DatabaseManager::instance().saveModel(m);
-    for (const auto& m : recycleBin) DatabaseManager::instance().saveModel(m);
+    for (const auto& m : allModels) {
+        if (!saveModelWithFeedback(this, m)) break;
+    }
+    for (const auto& m : recycleBin) {
+        if (!saveModelWithFeedback(this, m)) break;
+    }
     refreshModelList(); // 刷新主界面
 }
 
@@ -254,7 +274,7 @@ void MainWindow::onOpenDraftBox() {
 
         if (res == QDialog::Accepted) {
             // 训练成功，保存新模型（ID是新的）
-            DatabaseManager::instance().saveModel(addDlg.resultInfo);
+            if (!saveModelWithFeedback(this, addDlg.resultInfo)) return;
             allModels.append(addDlg.resultInfo);
 
             // 删除旧的草稿文件
@@ -268,7 +288,7 @@ void MainWindow::onOpenDraftBox() {
         }
         else if (res == 2) {
             // 用户再次存为草稿，addDlg 会生成一个新的 ID
-            DatabaseManager::instance().saveModel(addDlg.resultInfo);
+            if (!saveModelWithFeedback(this, addDlg.resultInfo)) return;
             draftBox.append(addDlg.resultInfo);
 
             // 删除旧草稿，避免草稿箱里出现两个相似的版本

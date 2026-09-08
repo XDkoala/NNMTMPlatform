@@ -75,6 +75,7 @@ private:
 		// --- Train / Test 模式 ---
 		if (state != State::Infer) {
 			for (const auto& entry : fs::directory_iterator(data_path)) {
+				throw_if_cancelled();
 				if (!entry.is_directory()) continue;
 
 				std::string label_name = entry.path().filename().string();
@@ -98,6 +99,7 @@ private:
 				int64_t label_idx = label_map[label_name];
 
 				for (const auto& img_entry : fs::directory_iterator(entry.path())) {
+					throw_if_cancelled();
 					if (!img_entry.is_regular_file()) continue;
 					if (!is_image(img_entry.path())) continue;
 
@@ -117,6 +119,7 @@ private:
 		// --- Infer 模式 ---
 		else {
 			for (const auto& entry : fs::directory_iterator(data_path)) {
+				throw_if_cancelled();
 				if (!entry.is_regular_file()) continue;
 				if (!is_image(entry.path())) continue;
 

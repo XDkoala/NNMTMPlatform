@@ -17,6 +17,9 @@
 #include <QJsonObject> // Qt JSON 对象类，用于处理 JSON 数据
 #include <QJsonDocument> // Qt JSON 文档类，用于读写 JSON
 #include <QFile> // Qt 文件操作类
+#include <QSaveFile>
+#include <QJsonParseError>
+#include <QRegularExpression>
 #include <QDir> // Qt 目录操作类
 #include <QThread> // Qt 线程类，用于多线程处理
 #include <QObject> // Qt 对象基类
@@ -203,23 +206,36 @@ public:
     void init() {
         QString root = "data"; // 定义根目录名为 data
         infoDir = QDir(root + "/info"); // 定义信息存储子目录 data/info
-        if (!infoDir.exists()) infoDir.mkpath("."); // 如果目录不存在，则创建它
+        if (!infoDir.exists() && !infoDir.mkpath(".")) {
+            throw std::runtime_error("无法创建模型信息目录: " + infoDir.absolutePath().toStdString());
+        }
     }
 
     // 保存单个模型信息到文件
     void saveModel(const ModelInfo& model) {
         QString modelInfoPath = infoDir.filePath(model.id); // 根据 ID 生成文件路径
-        QDir().mkpath(modelInfoPath); // 创建该模型对应的文件夹
-        QFile file(modelInfoPath + "/info.json"); // 定义具体的 info.json 文件
-        if (file.open(QIODevice::WriteOnly)) { // 以只写模式打开文件
-            QJsonDocument doc(model.toJson()); // 将模型信息转为 JSON 文档
-            file.write(doc.toJson()); // 写入 JSON 数据到文件
-            file.close(); // 关闭文件
+        if (!isSafeId(model.id)) {
+            throw std::invalid_argument("模型 ID 含有非法字符。");
+        }
+        if (!QDir().mkpath(modelInfoPath)) {
+            throw std::runtime_error("无法创建模型信息目录: " + modelInfoPath.toStdString());
+        }
+
+        QSaveFile file(modelInfoPath + "/info.json");
+        if (!file.open(QIODevice::WriteOnly)) {
+            throw std::runtime_error("无法写入模型信息: " + file.errorString().toStdString());
+        }
+        const QByteArray contents = QJsonDocument(model.toJson()).toJson();
+        if (file.write(contents) != contents.size() || !file.commit()) {
+            throw std::runtime_error("保存模型信息失败: " + file.errorString().toStdString());
         }
     }
 
     // 永久删除模型及其所有相关文件
     void deleteModel(const QString& id) {
+        if (!isSafeId(id)) {
+            throw std::invalid_argument("模型 ID 含有非法字符。");
+        }
         // 删除 info (元数据)
         QDir dir(infoDir.filePath(id)); // 定位到元数据目录
         if (dir.exists()) {
@@ -253,8 +269,18 @@ public:
             QFile file(jsonPath);
             if (file.open(QIODevice::ReadOnly)) { // 以只读模式打开
                 QByteArray data = file.readAll(); // 读取所有内容
-                QJsonDocument doc = QJsonDocument::fromJson(data); // 解析 JSON
+                QJsonParseError parseError;
+                QJsonDocument doc = QJsonDocument::fromJson(data, &parseError); // 解析 JSON
+                if (parseError.error != QJsonParseError::NoError || !doc.isObject()) {
+                    qWarning() << "Skipping invalid model metadata:" << jsonPath
+                               << parseError.errorString();
+                    continue;
+                }
                 ModelInfo info = ModelInfo::fromJson(doc.object()); // 转换为 ModelInfo 对象
+                if (info.id != id || !isSafeId(info.id)) {
+                    qWarning() << "Skipping inconsistent model metadata:" << jsonPath;
+                    continue;
+                }
                 list.append(info); // 添加到列表
             }
         }
@@ -263,6 +289,10 @@ public:
 
 private:
     DatabaseManager() {} // 私有构造函数，防止外部实例化（单例模式）
+    static bool isSafeId(const QString& id) {
+        static const QRegularExpression pattern(QStringLiteral("^[A-Za-z0-9_-]+$"));
+        return !id.isEmpty() && pattern.match(id).hasMatch();
+    }
     QDir infoDir; // 存储信息目录的 QDir 对象
 };
 
@@ -275,7 +305,8 @@ public:
     ModelInfo m_info;  // 存储模型信息（以便对应建立模型）
 
     // 构造函数，接收 ModelInfo
-    explicit TrainingWorker(ModelInfo info) : m_info(info) {}
+    explicit TrainingWorker(ModelInfo info, QObject* parent = nullptr)
+        : QThread(parent), m_info(std::move(info)) {}
 
     // 线程主执行函数
     void run() override {
@@ -325,23 +356,28 @@ public:
                     emit progressUpdated(progress); // 发送进度更新信号
                 },
                 nullptr,  // 训练模式下的 ResultCallback 用不上，设为 nullptr
-                nullptr   // 训练模式下的 ProgressCallback 用不上，设为 nullptr
+                nullptr,  // 训练模式下的 ProgressCallback 用不上，设为 nullptr
+                [this]() { return isInterruptionRequested(); }
             );
 
             emit statusChanged("开始读取数据并训练..."); // 状态：开始训练
             net->conduct(); // 执行神经网络的主流程（数据读取 -> 训练循环）
 
             emit statusChanged("训练完成！模型已保存。"); // 状态：完成
-            emit trainingFinished(); // 发送训练完成信号
+            emit trainingFinished(true, false); // 发送训练完成信号
 
+        }
+        catch (const OperationCancelled&) {
+            emit statusChanged("训练已安全取消。");
+            emit trainingFinished(false, true);
         }
         catch (const std::exception& e) {
             emit statusChanged(QString("训练出错: ") + e.what()); // 捕获标准异常并发送错误信息
-            emit trainingFinished(); // 即使出错也发送完成信号以重置 UI
+            emit trainingFinished(false, false);
         }
         catch (...) {
             emit statusChanged("发生未知错误，训练终止。"); // 捕获未知异常
-            emit trainingFinished();
+            emit trainingFinished(false, false);
         }
     }
 
@@ -349,7 +385,7 @@ signals:
     void progressUpdated(int value); // 信号：进度条更新
     void lossUpdated(int step, double trainLoss, double valLoss); // 信号：Loss 图表更新
     void statusChanged(QString status); // 信号：文本状态更新
-    void trainingFinished(); // 信号：训练过程结束
+    void trainingFinished(bool success, bool cancelled); // 信号：训练过程结束
 };
 
 // 推理工作线程类，用于在后台执行预测/测试任务
@@ -361,8 +397,8 @@ public:
     QString inputPath; // 用户临时导入的数据路径
 
     // 构造函数
-    InferenceWorker(ModelInfo info, bool testMode, QString path)
-        : m_info(info), isTestMode(testMode), inputPath(path) {
+    InferenceWorker(ModelInfo info, bool testMode, QString path, QObject* parent = nullptr)
+        : QThread(parent), m_info(std::move(info)), isTestMode(testMode), inputPath(std::move(path)) {
     }
 
     // 线程主执行函数
@@ -409,7 +445,8 @@ public:
                 // 进度回调 (例如处理了多少张图片)
                 [this](int progress) {
                     emit progressUpdated(progress); // 发送进度
-                }
+                },
+                [this]() { return isInterruptionRequested(); }
             );
 
             // 3. 执行
@@ -439,19 +476,24 @@ public:
 
                 emit classificationDataReady(q_preds, q_targets, q_labelMap); // 发送数据给分类分析弹窗
             }
+
+            emit inferenceFinished(true, false);
+        }
+        catch (const OperationCancelled&) {
+            emit statusChanged("操作已安全取消。");
+            emit inferenceFinished(false, true);
         }
         catch (const std::exception& e) {
             emit resultReady(QString("Critical Error: ") + e.what(), false); // 捕获异常并作为错误结果发送
+            emit inferenceFinished(false, false);
         }
-
-        emit inferenceFinished(); // 发送结束信号
     }
 
 signals:
     void progressUpdated(int value); // 信号：进度更新
     void statusChanged(QString status); // 信号：状态文字更新
     void resultReady(QString result, bool isCorrect); // 信号：单条结果就绪
-    void inferenceFinished(); // 信号：推理结束
+    void inferenceFinished(bool success, bool cancelled); // 信号：推理结束
     void regressionDataReady(QVector<double> preds, QVector<double> targets); // 信号：回归分析数据就绪
     void classificationDataReady(QVector<int> preds, QVector<int> targets, QMap<QString, int> labelMap);
 };

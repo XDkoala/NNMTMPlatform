@@ -24,6 +24,7 @@ qt_add_executable(NNMTMPlatform
     src/ui/AnalysisDialogs.cpp
     src/ui/MainWindow.cpp
     src/core/ModelCore.h
+    src/core/TrainingUtils.h
     src/models/NeuralNetwork.h
     src/models/ANN.h
     src/models/ANNModels.h
@@ -100,6 +101,18 @@ if(WIN32)
 endif()
 
 include(CTest)
+
+if(BUILD_TESTING)
+    add_executable(NNMTMCoreTests
+        tests/CoreLogicTests.cpp
+        src/core/TrainingUtils.h
+    )
+    target_include_directories(NNMTMCoreTests PRIVATE src/core)
+    if(MSVC)
+        target_compile_options(NNMTMCoreTests PRIVATE /utf-8 /W4 /permissive-)
+    endif()
+    add_test(NAME core_logic COMMAND NNMTMCoreTests)
+endif()
 
 install(TARGETS NNMTMPlatform
     RUNTIME DESTINATION .
