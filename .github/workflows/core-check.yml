@@ -1,0 +1,23 @@
+name: Core checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  core-logic:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Compile dependency-free core tests
+        run: >-
+          c++ -std=c++17 -Wall -Wextra -Wpedantic -Werror
+          -Isrc/core tests/CoreLogicTests.cpp -o core_logic_tests
+
+      - name: Run core tests
+        run: ./core_logic_tests
