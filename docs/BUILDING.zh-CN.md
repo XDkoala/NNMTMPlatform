@@ -61,3 +61,30 @@ CUDA Toolkit 的小版本与 LibTorch 包名不完全一致不一定代表失败
 ### 程序启动时缺少 DLL
 
 请从 CMake 生成的目录启动程序。正常构建会自动复制 Qt、OpenCV 和 LibTorch 运行库；如果手动移动 `.exe`，需要同时携带这些依赖。
+
+## Windows 便携包维护
+
+`scripts/Package-Windows.ps1` 默认打包 CPU；指定 `-Backend cuda` 打包
+`windows-x64-cuda128`。两个后端必须使用独立的 Release 构建目录，
+分别链接 LibTorch 2.9.0 CPU/CUDA 12.8，不能混用 DLL。
+首次 GPU 打包构建建议使用 `cmake --build <构建目录> --parallel 1`，
+避免多个目标同时部署到同一目录时读取未复制完的大型 CUDA DLL。
+
+脚本要求提供 Qt 安装和许可证、vcpkg 安装、MSVC 可再分发 CRT、dumpbin、
+对应 Qt 6.10.1 源码，以及匹配后端的官方 PyTorch wheel 许可证。
+CUDA 版额外通过 `-NvidiaLicenseDirectory` 提供官方 CUDA 12.8 EULA、
+cuDNN 9.10.2 EULA（含补充条款）、CUPTI 12.8 许可文档。
+具体参数和必需文件名见脚本开头。
+
+`scripts/Fetch-TorchLicenseWheel.py` 可仅下载 CUDA 官方 wheel 内的
+LICENSE/NOTICE，输出小型 ZIP 给 `-TorchLicenseWheel` 使用，避免下载整个 wheel。
+它不是可安装的 Python 包。
+
+输出目录必须是项目内的新目录，脚本不覆盖已有包。`-SourceRef` 默认 HEAD；
+给已有 Release 添加不同后端时可指定其 tag，应用源码必须与该 tag 一致。
+清单分别记录应用源码提交和打包脚本提交。发布时保留同一 Release 的 Qt 源码附件。
+
+打包后用 `scripts/Validate-WindowsPackage.ps1` 提供 `-ArchivePath`、
+`-BuildDirectory` 和新的 `-OutputDirectory` 验证。GPU 包指定 `-Device cuda`，
+将在真实 NVIDIA GPU 上检查 CUDA、强制 CPU 和隐藏 GPU 后自动回退。
+验证进程隔离开发工具 PATH；隐藏 GPU 不等同于没有驱动的干净系统测试。

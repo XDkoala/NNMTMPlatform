@@ -13,7 +13,12 @@ NNMTMPlatform 是一个本地运行的神经网络训练与模型管理工具，
 `Start.cmd` 或 `NNMTMPlatform.exe`。需要 Windows 10/11 x64 和支持 AVX2 的处理器。
 运行库和示例已包含，不需要自行编译，也不需要安装 CUDA、Python 或 Qt。
 
-此便携包使用 CPU，模型数据保存在程序旁边的 `data/`。源码构建仍支持 CUDA。
+有 NVIDIA 显卡的使用者也可下载 `NNMTMPlatform-v0.1.1-windows-x64-cuda128.zip`。
+GPU 包包含 CUDA 12.8/cuDNN 运行库，不需要安装 CUDA Toolkit，但需要兼容的
+NVIDIA 显卡驱动；建议更新到支持自己显卡的最新驱动。默认优先 GPU，不可用时回退 CPU。
+GPU 包解压需要约 5 GB 空间；无 NVIDIA 显卡建议使用较小的 CPU 包。
+
+两种便携包的模型数据均保存在程序旁边的 `data/`。
 第三方许可证随包提供，对应 Qt 源码见同一 Release 的 `Qt-6.10.1-sources.zip`。
 
 ## 功能

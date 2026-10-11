@@ -10,15 +10,6 @@
 
 namespace fs = std::filesystem;
 
-void setDevicePreference(const char* value) {
-#ifdef _WIN32
-    _putenv_s("NNMTM_DEVICE", value);
-#else
-    if (value[0] == '\0') unsetenv("NNMTM_DEVICE");
-    else setenv("NNMTM_DEVICE", value, 1);
-#endif
-}
-
 struct FixtureCleanup {
     fs::path imageRoot;
     fs::path parameterRoot;
@@ -34,6 +25,9 @@ struct FixtureCleanup {
 
 int main() {
     const bool hasCuda = torch::cuda::is_available();
+    const char* configured = std::getenv("NNMTM_DEVICE");
+    const std::string preference = configured ? configured : "auto";
+    const bool expectCuda = preference != "cpu" && hasCuda;
 
     const std::string modelId = "cnn_pipeline_check";
     const fs::path imageRoot = fs::current_path() / "cnn_pipeline_fixture";
@@ -57,7 +51,6 @@ int main() {
             }
         }
 
-        setDevicePreference(hasCuda ? "cuda" : "cpu");
         bool selectedDevice = false;
         CNN network(State::Train, Task::BinaryClassification, CNNType::LeNet,
                     imageRoot.string(), modelId);
@@ -65,11 +58,12 @@ int main() {
         network.set_callbacks(
             nullptr,
             [&](const std::string& message, bool) {
-                if (message.find(hasCuda ? "CUDA:0" : "CPU") != std::string::npos) selectedDevice = true;
+                if (message.find("Compute device:") != std::string::npos ||
+                    message.find("CUDA is unavailable") != std::string::npos) std::cout << message << '\n';
+                if (message.find(expectCuda ? "CUDA:0" : "CPU") != std::string::npos) selectedDevice = true;
             },
             nullptr);
         network.conduct();
-        setDevicePreference("");
 
         if (!selectedDevice) throw std::runtime_error("CNN pipeline did not select its expected device.");
         if (!fs::exists(cleanup.parameterRoot / "model.pt")) {
@@ -102,10 +96,9 @@ int main() {
         }
 
         std::cout << "CNN streaming train/save/load/infer pipeline passed on "
-                  << (hasCuda ? "CUDA:0" : "CPU") << ".\n";
+                  << (expectCuda ? "CUDA:0" : "CPU") << ".\n";
         return 0;
     } catch (const std::exception& error) {
-        setDevicePreference("");
         std::cerr << "CNN pipeline check failed: " << error.what() << '\n';
         return 1;
     }

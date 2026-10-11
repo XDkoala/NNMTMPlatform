@@ -1,6 +1,7 @@
 #include "ANN.h"
 
 #include <filesystem>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -32,6 +33,10 @@ int main() {
     };
 
     try {
+        const char* configured = std::getenv("NNMTM_DEVICE");
+        const std::string preference = configured ? configured : "auto";
+        const bool expectCuda = preference != "cpu" && torch::cuda::is_available();
+        bool selectedDevice = false;
         {
             std::ofstream train(cleanup.trainFile);
             train << "0.0 0.0 low\n"
@@ -47,7 +52,13 @@ int main() {
         ANN network(State::Train, Task::BinaryClassification, ANNType::SimpleMLP,
                     2, cleanup.trainFile.string(), modelId);
         network.set_training_options(2, 2, 0.001);
+        network.set_callbacks(nullptr, [&](const std::string& message, bool) {
+            if (message.find(expectCuda ? "CUDA:0" : "CPU") != std::string::npos) selectedDevice = true;
+            if (message.find("Compute device:") != std::string::npos ||
+                message.find("CUDA is unavailable") != std::string::npos) std::cout << message << '\n';
+        }, nullptr);
         network.conduct();
+        if (!selectedDevice) throw std::runtime_error("ANN selected an unexpected device.");
 
         if (!fs::exists(cleanup.parameterRoot / "model.pt") ||
             !fs::exists(cleanup.parameterRoot / "normalization.pt")) {
@@ -79,7 +90,8 @@ int main() {
             throw std::runtime_error("ANN batched inference did not return two predictions.");
         }
 
-        std::cout << "ANN train/save/load/infer pipeline passed.\n";
+        std::cout << "ANN train/save/load/infer pipeline passed on "
+                  << (expectCuda ? "CUDA:0" : "CPU") << ".\n";
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "ANN pipeline check failed: " << error.what() << '\n';

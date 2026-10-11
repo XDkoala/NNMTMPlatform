@@ -3,6 +3,8 @@
 ## 0.1.1 — 2026-10-11
 
 - 提供 Windows x64 CPU 便携 ZIP，含 Qt、LibTorch、OpenCV、MSVC 运行库与数值示例。
+- 同一 Release 增加 CUDA 12.8 GPU 便携 ZIP，包含 cuDNN 运行库和 NVIDIA 许可说明。
+- GPU 包验证实际 CUDA 运算、ANN/CNN 流程、强制 CPU 和隐藏 GPU 后的自动回退。
 - 替换 Qt Charts 为项目自行绘制的图表，保留训练曲线、回归散点图和召回率柱状图。
 - 便携模式将模型数据固定保存在程序旁，增加可重复的打包脚本和启动检查。
 - 提供 SHA256 校验、文件清单、依赖许可证及对应 Qt 源码附件。

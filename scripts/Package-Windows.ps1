@@ -8,7 +8,10 @@ param(
     [Parameter(Mandatory)][string]$TorchLicenseWheel,
     [Parameter(Mandatory)][string]$QtSourceDirectory,
     [Parameter(Mandatory)][string]$DumpbinPath,
-    [string]$OutputDirectory = 'dist'
+    [string]$OutputDirectory = 'dist',
+    [ValidateSet('cpu','cuda')][string]$Backend = 'cpu',
+    [string]$NvidiaLicenseDirectory,
+    [string]$SourceRef = 'HEAD'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -26,7 +29,8 @@ $outputRoot = [IO.Path]::GetFullPath((Join-Path $projectRoot $OutputDirectory))
 if (!$outputRoot.StartsWith($projectRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
     throw 'Output directory must be inside the project workspace.'
 }
-$name = "NNMTMPlatform-v$version-windows-x64-cpu"
+$suffix = if ($Backend -eq 'cuda') { 'cuda128' } else { 'cpu' }
+$name = "NNMTMPlatform-v$version-windows-x64-$suffix"
 $stage = Join-Path $outputRoot $name
 $zipPath = Join-Path $outputRoot ($name + '.zip')
 $qtSourceZip = Join-Path $outputRoot 'Qt-6.10.1-sources.zip'
@@ -42,8 +46,15 @@ foreach ($file in $qtSourceHashes.Keys) {
 if ((Test-Path -LiteralPath $stage) -or (Test-Path -LiteralPath $zipPath)) {
     throw 'Output already exists. Use a fresh output directory; this script never overwrites packages.'
 }
-if (Test-Path -LiteralPath (Join-Path $buildRoot 'torch_cuda.dll')) {
+if ($Backend -eq 'cpu' -and (Test-Path -LiteralPath (Join-Path $buildRoot 'torch_cuda.dll'))) {
     throw 'This script packages CPU builds only. Configure a separate CPU LibTorch build.'
+}
+if ($Backend -eq 'cuda') {
+    if (!(Test-Path -LiteralPath (Join-Path $buildRoot 'torch_cuda.dll'))) { throw 'CUDA build required.' }
+    if (!$NvidiaLicenseDirectory) { throw 'NVIDIA license directory required for CUDA distribution.' }
+    foreach ($file in @('CUDA-12.8-EULA.html','cuDNN-9.10.2-EULA.html','CUPTI-12.8-LICENSE.html')) {
+        if (!(Test-Path -LiteralPath (Join-Path $NvidiaLicenseDirectory $file))) { throw "Missing NVIDIA license: $file" }
+    }
 }
 if (!(Test-Path -LiteralPath (Join-Path $buildRoot 'NNMTMPlatform.exe'))) { throw 'Build the application first.' }
 New-Item -ItemType Directory -Path $stage -Force | Out-Null
@@ -95,15 +106,22 @@ while ($dependencyQueue.Count -gt 0) {
 }
 Copy-Item -LiteralPath (Join-Path $projectRoot 'examples') -Destination $stage -Recurse
 Copy-Item -LiteralPath (Join-Path $projectRoot 'LICENSE') -Destination $stage
-foreach ($file in @('Start.cmd', 'portable.ini', 'README-Windows.txt', 'THIRD_PARTY_NOTICES.md')) {
+foreach ($file in @('Start.cmd', 'portable.ini')) {
     Copy-Item -LiteralPath (Join-Path $projectRoot "packaging/$file") -Destination $stage
 }
+$readme = if ($Backend -eq 'cuda') { 'README-Windows-CUDA.txt' } else { 'README-Windows.txt' }
+$notice = if ($Backend -eq 'cuda') { 'THIRD_PARTY_NOTICES-CUDA.md' } else { 'THIRD_PARTY_NOTICES.md' }
+Copy-Item -LiteralPath (Join-Path $projectRoot "packaging/$readme") -Destination (Join-Path $stage 'README-Windows.txt')
+Copy-Item -LiteralPath (Join-Path $projectRoot "packaging/$notice") -Destination (Join-Path $stage 'THIRD_PARTY_NOTICES.md')
 
 $licenses = Join-Path $stage 'licenses'
 $qtLicenses = Join-Path $licenses 'Qt'
 $torchLicenses = Join-Path $licenses 'PyTorch'
 $vcpkgLicenses = Join-Path $licenses 'vcpkg'
 New-Item -ItemType Directory -Path $qtLicenses,$torchLicenses,$vcpkgLicenses -Force | Out-Null
+if ($Backend -eq 'cuda') {
+    Copy-Item -LiteralPath $NvidiaLicenseDirectory -Destination (Join-Path $licenses 'NVIDIA') -Recurse
+}
 Copy-Item -LiteralPath (Join-Path $QtLicenseDirectory 'LICENSE') -Destination $qtLicenses
 Copy-Item -LiteralPath (Join-Path $QtLicenseDirectory 'Copyright.txt') -Destination $qtLicenses
 foreach ($module in @('qtbase', 'qtsvg')) {
@@ -127,6 +145,10 @@ $qtZipHash = (Get-FileHash -LiteralPath $qtSourceZip -Algorithm SHA256).Hash.ToL
 "$qtZipHash  Qt-6.10.1-sources.zip" | Set-Content -LiteralPath ($qtSourceZip + '.sha256') -Encoding ascii
 $wheel = [IO.Compression.ZipFile]::OpenRead($wheelPath)
 try {
+    $variant = if ($Backend -eq 'cuda') { 'cu128' } else { 'cpu' }
+    if (!($wheel.Entries | Where-Object { $_.FullName -match "torch-2\.9\.0\+$variant\.dist-info/LICENSE`$" })) {
+        throw "License wheel must match PyTorch 2.9.0+$variant."
+    }
     foreach ($file in @('LICENSE', 'NOTICE')) {
         $entries = @($wheel.Entries | Where-Object { $_.FullName -match "\.dist-info/$file`$" })
         if ($entries.Count -ne 1) { throw "Missing or ambiguous PyTorch $file." }
@@ -160,10 +182,13 @@ if ((Get-ChildItem -LiteralPath $generatedData -Recurse -File).Count -ne 0) {
 }
 # Empty runtime directories are harmless; no user's data is copied or deleted.
 if (Test-Path -LiteralPath (Join-Path $stage 'Qt6Charts.dll')) { throw 'GPL Qt Charts must not be bundled.' }
-$sourceCommit = (& git -C $projectRoot rev-parse HEAD).Trim()
+$sourceCommit = (& git -C $projectRoot rev-parse --verify "${SourceRef}^{commit}").Trim()
 if ($LASTEXITCODE -ne 0) { throw 'Cannot read source commit.' }
+$applicationChanges = & git -C $projectRoot diff $sourceCommit -- src resources CMakeLists.txt
+if ($LASTEXITCODE -ne 0 -or $applicationChanges) { throw 'Application source differs from the specified source commit.' }
 $manifest = [ordered]@{
-    version = $version; platform = 'windows-x64'; backend = 'cpu'; sourceCommit = $sourceCommit
+    version = $version; platform = 'windows-x64'; backend = $Backend; sourceCommit = $sourceCommit
+    packagingCommit = (& git -C $projectRoot rev-parse HEAD).Trim()
     files = @(Get-ChildItem -LiteralPath $stage -Recurse -File | Sort-Object FullName | ForEach-Object {
         [ordered]@{
             path = $_.FullName.Substring($stage.Length + 1).Replace('\','/')
