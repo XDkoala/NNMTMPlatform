@@ -13,7 +13,8 @@ param(
     [string]$NvidiaLicenseDirectory,
     [string]$SourceRef = 'HEAD',
     [ValidateSet('zip','7z')][string]$ArchiveFormat = 'zip',
-    [string]$SevenZipPath
+    [string]$SevenZipPath,
+    [ValidateRange(1,32)][int]$CompressionThreads = 2
 )
 
 $ErrorActionPreference = 'Stop'
@@ -205,7 +206,7 @@ $manifest = [ordered]@{
 }
 $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $stage 'manifest.json') -Encoding utf8
 if ($ArchiveFormat -eq '7z') {
-    & $SevenZipPath a -t7z $zipPath $stage '-mx=7' '-mmt=2' '-md=64m' '-ms=on'
+    & $SevenZipPath a -t7z $zipPath $stage '-mx=7' "-mmt=$CompressionThreads" '-md=64m' '-ms=on' '-bsp1'
     if ($LASTEXITCODE -ne 0) { throw '7-Zip compression failed.' }
 } else {
     [IO.Compression.ZipFile]::CreateFromDirectory($stage, $zipPath, [IO.Compression.CompressionLevel]::Optimal, $true)
