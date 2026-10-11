@@ -3,7 +3,8 @@ param(
     [Parameter(Mandatory)][string]$ArchivePath,
     [Parameter(Mandatory)][string]$BuildDirectory,
     [string]$OutputDirectory = 'build/portable-verify',
-    [ValidateSet('cpu','cuda')][string]$Device = 'cpu'
+    [ValidateSet('cpu','cuda')][string]$Device = 'cpu',
+    [string]$SevenZipPath
 )
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
@@ -14,7 +15,13 @@ if (!$verifyRoot.StartsWith($projectRoot + [IO.Path]::DirectorySeparatorChar, [S
     throw 'Validation output must be inside the workspace.'
 }
 if (Test-Path -LiteralPath $verifyRoot) { throw 'Use a fresh validation output directory.' }
-Expand-Archive -LiteralPath $archive -DestinationPath $verifyRoot
+if ([IO.Path]::GetExtension($archive) -eq '.7z') {
+    if (!$SevenZipPath) { throw '7-Zip command line path required for .7z archives.' }
+    & $SevenZipPath x $archive "-o$verifyRoot" -y
+    if ($LASTEXITCODE -ne 0) { throw '7-Zip extraction failed.' }
+} else {
+    Expand-Archive -LiteralPath $archive -DestinationPath $verifyRoot
+}
 $directories = @(Get-ChildItem -LiteralPath $verifyRoot -Directory)
 if ($directories.Count -ne 1) { throw 'Expected one package directory.' }
 $packageRoot = $directories[0].FullName

@@ -16,8 +16,10 @@
 
 ## Windows CUDA GPU 版
 
-下载 `NNMTMPlatform-v0.1.1-windows-x64-cuda128.zip`，完整解压后双击
+下载 `NNMTMPlatform-v0.1.1-windows-x64-cuda128.7z`，用 7-Zip 或支持 7z
+的工具完整解压后双击
 `Start.cmd` 或 `NNMTMPlatform.exe`。解压需要约 5 GB 空间。
+GPU 运行库的普通 ZIP 超过 GitHub 单文件限制，故使用高压缩率 7z 格式。
 
 GPU 包包含 LibTorch 2.9.0 CUDA 12.8 和 cuDNN 9.10.2 运行库，
 无需安装 CUDA Toolkit、Python、Qt 或编译器。需要兼容 CUDA 12.8 的

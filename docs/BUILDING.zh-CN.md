@@ -67,6 +67,9 @@ CUDA Toolkit 的小版本与 LibTorch 包名不完全一致不一定代表失败
 `scripts/Package-Windows.ps1` 默认打包 CPU；指定 `-Backend cuda` 打包
 `windows-x64-cuda128`。两个后端必须使用独立的 Release 构建目录，
 分别链接 LibTorch 2.9.0 CPU/CUDA 12.8，不能混用 DLL。
+GPU 的普通 ZIP 超过 GitHub 单附件限制，发布包使用 `-ArchiveFormat 7z`
+和 `-SevenZipPath <7zr.exe或7z.exe路径>`；验证脚本也需提供 `-SevenZipPath`。
+7-Zip 仅作为构建工具使用，不会捆绑到程序包中。
 首次 GPU 打包构建建议使用 `cmake --build <构建目录> --parallel 1`，
 避免多个目标同时部署到同一目录时读取未复制完的大型 CUDA DLL。
 

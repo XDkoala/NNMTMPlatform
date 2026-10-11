@@ -1,6 +1,6 @@
 NNMTMPlatform Windows x64 CUDA 12.8 portable edition
 
-完整解压到可写目录，双击 Start.cmd 或 NNMTMPlatform.exe。
+用 7-Zip 或支持 7z 的工具完整解压到可写目录，双击 Start.cmd 或 NNMTMPlatform.exe。
 可用 examples/numeric/binary_train.txt 创建二分类 SimpleMLP，输入特征数填 2。
 
 系统要求：Windows 10/11 x64、支持 AVX2 的处理器、兼容 CUDA 12.8 的

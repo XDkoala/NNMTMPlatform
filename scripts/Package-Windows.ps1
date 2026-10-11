@@ -11,7 +11,9 @@ param(
     [string]$OutputDirectory = 'dist',
     [ValidateSet('cpu','cuda')][string]$Backend = 'cpu',
     [string]$NvidiaLicenseDirectory,
-    [string]$SourceRef = 'HEAD'
+    [string]$SourceRef = 'HEAD',
+    [ValidateSet('zip','7z')][string]$ArchiveFormat = 'zip',
+    [string]$SevenZipPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -32,7 +34,11 @@ if (!$outputRoot.StartsWith($projectRoot + [IO.Path]::DirectorySeparatorChar, [S
 $suffix = if ($Backend -eq 'cuda') { 'cuda128' } else { 'cpu' }
 $name = "NNMTMPlatform-v$version-windows-x64-$suffix"
 $stage = Join-Path $outputRoot $name
-$zipPath = Join-Path $outputRoot ($name + '.zip')
+$zipPath = Join-Path $outputRoot ($name + '.' + $ArchiveFormat)
+if ($ArchiveFormat -eq '7z') {
+    if (!$SevenZipPath) { throw '7-Zip command line path required.' }
+    $SevenZipPath = (Resolve-Path -LiteralPath $SevenZipPath).Path
+}
 $qtSourceZip = Join-Path $outputRoot 'Qt-6.10.1-sources.zip'
 if (Test-Path -LiteralPath $qtSourceZip) { throw 'Qt source ZIP already exists. Use a fresh output directory.' }
 $qtSourceHashes = @{
@@ -198,10 +204,15 @@ $manifest = [ordered]@{
     })
 }
 $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $stage 'manifest.json') -Encoding utf8
-[IO.Compression.ZipFile]::CreateFromDirectory($stage, $zipPath, [IO.Compression.CompressionLevel]::Optimal, $true)
+if ($ArchiveFormat -eq '7z') {
+    & $SevenZipPath a -t7z $zipPath $stage '-mx=7' '-mmt=2' '-md=64m' '-ms=on'
+    if ($LASTEXITCODE -ne 0) { throw '7-Zip compression failed.' }
+} else {
+    [IO.Compression.ZipFile]::CreateFromDirectory($stage, $zipPath, [IO.Compression.CompressionLevel]::Optimal, $true)
+}
 if ((Get-Item -LiteralPath $zipPath).Length -ge 2GB) { throw 'Archive exceeds GitHub single-asset limit.' }
 $hash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
-"$hash  $name.zip" | Set-Content -LiteralPath ($zipPath + '.sha256') -Encoding ascii
+"$hash  $name.$ArchiveFormat" | Set-Content -LiteralPath ($zipPath + '.sha256') -Encoding ascii
 Write-Output "Created $zipPath"
-Write-Output ('ZIP size: {0:N1} MiB' -f ((Get-Item -LiteralPath $zipPath).Length / 1MB))
+Write-Output ('Archive size: {0:N1} MiB' -f ((Get-Item -LiteralPath $zipPath).Length / 1MB))
 Write-Output "SHA256: $hash"
