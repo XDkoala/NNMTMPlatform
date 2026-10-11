@@ -17,11 +17,9 @@
 #include <QProgressBar> // Qt 进度条类
 #include <QSpinBox> // Qt 整数输入框类
 #include <QDoubleSpinBox>
-#include <QtCharts> // Qt 图表模块
-#include <QChart> // Qt 图表类
-#include <QChartView> // Qt 图表视图类
-#include <QLineSeries> // Qt 折线序列类
-#include <QValueAxis> // Qt 数值坐标轴类
+#include <QTableWidget>
+#include <QHeaderView>
+#include "PlotWidget.h"
 
 // 声明所有类，方便相互引用（前置声明）
 class ModelCard;
@@ -118,14 +116,10 @@ private:
     ModelInfo m_info; // 模型信息
     QProgressBar* progressBar; // 进度条
     QLabel* statusLabel; // 状态文字
-    QLineSeries* seriesVal;  // 记录 Validation Loss 的数据序列
-    QLineSeries* seriesTrain;  // 记录 Train Loss 的数据序列
-    QChart* chart; // 图表对象
-    QValueAxis* axisX; // 保存X轴指针，用于动态调整
-    QValueAxis* axisY; // 保存Y轴指针，用于动态调整
+    PlotWidget* chart;
+    int seriesVal;
+    int seriesTrain;
     QTableWidget* historyTable;  // 历史记录表格控件
-    double m_minLoss;  // 记录最小Loss，用于 Y 轴缩放
-    double m_maxLoss;  // 记录最大Loss，用于 Y 轴缩放
 
     QPushButton* saveBtn; // 保存按钮
     TrainingWorker* worker; // 训练后台线程指针
@@ -174,9 +168,6 @@ class RegressionAnalysisDialog : public QDialog {
 public:
     // 构造函数，传入预测值和真实值向量
     RegressionAnalysisDialog(const QVector<double>& preds, const QVector<double>& targets, QWidget* parent = nullptr);
-private:
-    QChart* chart; // 图表对象
-    QChartView* chartView; // 图表视图
 };
 
 // 绘制混淆矩阵（测试模式下分类任务可视化）

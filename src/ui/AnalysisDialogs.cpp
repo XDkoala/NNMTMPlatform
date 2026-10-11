@@ -15,85 +15,37 @@ RegressionAnalysisDialog::RegressionAnalysisDialog(const QVector<double>& preds,
     resize(800, 600); // 设置大小
     QVBoxLayout* layout = new QVBoxLayout(this); // 主布局
 
-    chart = new QChart(); // 创建图表
-    chart->setTitle("预测值 vs 真实值 (Prediction vs Ground Truth)"); // 设置图表标题
-    chart->setTheme(QChart::ChartThemeLight); // 设置主题
-
-    // 1. 散点图 (Scatter Plot)
-    QScatterSeries* scatterSeries = new QScatterSeries();
-    scatterSeries->setName("样本点");
-    scatterSeries->setMarkerSize(8.0); // 点大小
-    scatterSeries->setColor(QColor(0, 120, 215, 150)); // 半透明蓝
-    scatterSeries->setBorderColor(Qt::transparent); // 无边框
-
-    double minVal = 1e9, maxVal = -1e9; // 初始化极大极小值
-
-    // 最小二乘法累计变量 (用于计算拟合线)
+    auto* chart = new PlotWidget("预测值 vs 真实值", "预测值 (Predicted)", "真实值 (Actual)", this);
+    const int baseline = chart->addSeries("基准线 (y=x)", Qt::gray, PlotWidget::Style::Line, Qt::DashLine);
+    const int fit = chart->addSeries("拟合线", Qt::red);
+    const int samples = chart->addSeries("样本点", QColor(0, 120, 215, 150), PlotWidget::Style::Scatter);
+    const qsizetype count = std::min(preds.size(), targets.size());
     double sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
-    int n = preds.size(); // 样本数
-
-    // 遍历数据点
-    for (int i = 0; i < n; ++i) {
-        double p = preds[i]; // X: 预测值
-        double t = targets[i]; // Y: 真实值
-        scatterSeries->append(p, t); // 添加点
-
-        // 更新极值
-        if (p < minVal) minVal = p; if (p > maxVal) maxVal = p;
-        if (t < minVal) minVal = t; if (t > maxVal) maxVal = t;
-
-        // 累计求和
-        sumX += p;
-        sumY += t;
-        sumXY += (p * t);
-        sumXX += (p * p);
+    double minVal = std::numeric_limits<double>::infinity(), maxVal = -minVal;
+    qsizetype validCount = 0;
+    for (qsizetype i = 0; i < count; ++i) {
+        const double p = preds[i], t = targets[i];
+        if (!std::isfinite(p) || !std::isfinite(t)) continue;
+        chart->append(samples, p, t);
+        minVal = std::min({minVal, p, t});
+        maxVal = std::max({maxVal, p, t});
+        sumX += p; sumY += t; sumXY += p * t; sumXX += p * p;
+        ++validCount;
     }
-
-    // 坐标轴范围稍微扩大一点，留出边距
-    double range = maxVal - minVal;
-    minVal -= range * 0.1;
-    maxVal += range * 0.1;
-
-    // 2. 基准线 (y = x) - 理想预测线
-    QLineSeries* baselineSeries = new QLineSeries();
-    baselineSeries->setName("基准线 (y=x)");
-    baselineSeries->append(minVal, minVal);
-    baselineSeries->append(maxVal, maxVal);
-    QPen basePen(Qt::gray); // 灰色
-    basePen.setStyle(Qt::DashLine); // 虚线
-    basePen.setWidth(2);
-    baselineSeries->setPen(basePen);
-
-    // 3. 拟合线 (Linear Fit) - 实际预测趋势
-    // 公式: y = kx + b
-    double k = 0, b = 0;
-    if (n > 1 && (n * sumXX - sumX * sumX) != 0) {
-        k = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX); // 计算斜率 k
-        b = (sumY - k * sumX) / n; // 计算截距 b
+    if (validCount > 0) {
+        if (minVal == maxVal) { minVal -= 0.5; maxVal += 0.5; }
+        chart->append(baseline, minVal, minVal);
+        chart->append(baseline, maxVal, maxVal);
+        const double n = static_cast<double>(validCount);
+        const double denominator = n * sumXX - sumX * sumX;
+        if (validCount > 1 && std::abs(denominator) > 1e-12) {
+            const double k = (n * sumXY - sumX * sumY) / denominator;
+            const double offset = (sumY - k * sumX) / n;
+            chart->append(fit, minVal, k * minVal + offset);
+            chart->append(fit, maxVal, k * maxVal + offset);
+        }
     }
-
-    QLineSeries* fitSeries = new QLineSeries();
-    fitSeries->setName(QString("拟合线 (k=%.3f)").arg(k)); // 显示斜率
-    fitSeries->append(minVal, k * minVal + b); // 起点
-    fitSeries->append(maxVal, k * maxVal + b); // 终点
-    QPen fitPen(Qt::red); // 红色
-    fitPen.setWidth(3);
-    fitSeries->setPen(fitPen);
-
-    // 添加所有序列到图表
-    chart->addSeries(baselineSeries);
-    chart->addSeries(fitSeries);
-    chart->addSeries(scatterSeries); // 散点放在最上面
-
-    chart->createDefaultAxes(); // 创建默认坐标轴
-    chart->axes(Qt::Horizontal).first()->setRange(minVal, maxVal); // 设置 X 轴范围
-    chart->axes(Qt::Vertical).first()->setRange(minVal, maxVal); // 设置 Y 轴范围
-    chart->axes(Qt::Horizontal).first()->setTitleText("预测值 (Predicted)"); // X 轴标签
-    chart->axes(Qt::Vertical).first()->setTitleText("真实值 (Actual)"); // Y 轴标签
-
-    chartView = new QChartView(chart); // 创建视图
-    chartView->setRenderHint(QPainter::Antialiasing); // 抗锯齿
-    layout->addWidget(chartView);
+    layout->addWidget(chart);
 
     // 底部添加说明标签
     QLabel* note = new QLabel("说明：点越靠近灰色虚线(y=x)，表示预测越准确。\n红色实线为模型预测趋势的线性拟合，k值越接近1越好。", this);
@@ -219,55 +171,14 @@ ClassificationAnalysisDialog::ClassificationAnalysisDialog(const QVector<int>& p
         }
     }
 
-    QBarSet* set0 = new QBarSet("Recall (%)");
-    set0->setColor(QColor(64, 158, 255)); // 科技蓝
-
     QStringList categories;
+    QVector<double> recalls;
     for (int i = 0; i < m_numClasses; ++i) {
         categories << m_indexToLabel[i];
-        double recall = 0.0;
-        if (totalPerClass[i] > 0) {
-            recall = (double)correctPerClass[i] / totalPerClass[i] * 100.0;
-        }
-        *set0 << recall;
+        recalls << (totalPerClass[i] > 0
+            ? static_cast<double>(correctPerClass[i]) / totalPerClass[i] * 100.0 : 0.0);
     }
-
-    QBarSeries* series = new QBarSeries();
-    series->append(set0);
-    series->setLabelsVisible(true);
-
-    // 将标签放在柱状图内部顶端，并将颜色设为白色，这样 Y 轴就可以设置为完美的 100% 而不会切断文字
-    series->setLabelsPosition(QAbstractBarSeries::LabelsInsideEnd);
-    series->setLabelsFormat("@value%");
-
-    // 1. 文字放内部 (InsideEnd)
-    // 2. 轴设为 100
-    // 3. 将 Bar 颜色调浅一点，或者相信 Qt 默认的文字颜色处理
-
-    series->setLabelsPosition(QAbstractBarSeries::LabelsInsideEnd);
-
-    QChart* chart = new QChart();
-    chart->addSeries(series);
-    chart->setTitle("各类别召回率 (Recall Rate)");
-    chart->setAnimationOptions(QChart::SeriesAnimations);
-    chart->legend()->setVisible(false);
-
-    QBarCategoryAxis* axisX = new QBarCategoryAxis();
-    axisX->append(categories);
-    chart->addAxis(axisX, Qt::AlignBottom);
-    series->attachAxis(axisX);
-
-    QValueAxis* axisY = new QValueAxis();
-    // 强制设置为 0 - 100
-    axisY->setRange(0, 100);
-    axisY->setTitleText("Recall (%)");
-    axisY->setLabelFormat("%d"); // 整数显示
-    chart->addAxis(axisY, Qt::AlignLeft);
-    series->attachAxis(axisY);
-
-    QChartView* chartView = new QChartView(chart);
-    chartView->setRenderHint(QPainter::Antialiasing);
-
-    // 添加到布局 (伸缩因子 1)
-    mainLayout->addWidget(chartView, 1);
+    auto* chart = new PlotWidget("各类别召回率 (Recall Rate)", "类别", "Recall (%)", this);
+    chart->setBars(categories, recalls);
+    mainLayout->addWidget(chart, 1);
 }

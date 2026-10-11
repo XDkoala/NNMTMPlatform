@@ -1,4 +1,5 @@
 #include "AppUI.h" // 包含本模块的头文件
+#include <QToolTip>
 #include <QRegularExpression> // 包含正则表达式处理类
 #include <QMessageBox> // 包含消息弹窗类
 #include <QFileDialog> // 包含文件选择对话框类

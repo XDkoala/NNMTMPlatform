@@ -4,7 +4,17 @@ NNMTMPlatform 是一个本地运行的神经网络训练与模型管理工具，
 
 > 当前主要支持 Windows + MSVC；无需安装或打开 Visual Studio IDE，但需要 Visual Studio Build Tools 提供编译器。
 
-当前源码预览版：`v0.1.0`。版本变化见 [CHANGELOG](CHANGELOG.md)。
+当前预览版：`v0.1.1`。版本变化见 [CHANGELOG](CHANGELOG.md)。
+
+## Windows 直接运行
+
+从 [Releases](https://github.com/XDkoala/NNMTMPlatform/releases) 下载
+`NNMTMPlatform-v0.1.1-windows-x64-cpu.zip`，完整解压到可写目录，然后双击
+`Start.cmd` 或 `NNMTMPlatform.exe`。需要 Windows 10/11 x64 和支持 AVX2 的处理器。
+运行库和示例已包含，不需要自行编译，也不需要安装 CUDA、Python 或 Qt。
+
+此便携包使用 CPU，模型数据保存在程序旁边的 `data/`。源码构建仍支持 CUDA。
+第三方许可证随包提供，对应 Qt 源码见同一 Release 的 `Qt-6.10.1-sources.zip`。
 
 ## 功能
 
@@ -32,7 +42,7 @@ NNMTMPlatform 是一个本地运行的神经网络训练与模型管理工具，
 
 ## 快速开始
 
-需要 CMake 3.24+、Ninja、MSVC Build Tools、Qt 6（Core/Gui/Widgets/Charts）、LibTorch 和 OpenCV（core/imgproc/imgcodecs）。
+需要 CMake 3.24+、Ninja、MSVC Build Tools、Qt 6（Core/Gui/Widgets）、LibTorch 和 OpenCV（core/imgproc/imgcodecs）。
 
 1. 复制 `CMakeUserPresets.example.json` 为 `CMakeUserPresets.json`。
 2. 把其中的 Qt、LibTorch、vcpkg 和 Ninja 路径改为本机路径。
@@ -74,7 +84,8 @@ $env:NNMTM_DEVICE = "cuda"  # 强制 CUDA，不可用时直接报错
 | `core_logic` | 随机划分、分层划分和输入校验 |
 | `cuda_runtime` | LibTorch CUDA 运算与 Adam 参数更新 |
 | `ann_pipeline` | ANN 训练、保存、重载和推理 |
-| `cnn_pipeline` | CNN 分批读图、CUDA 训练、重载和推理 |
+| `cnn_pipeline` | CNN 分批读图、CPU/CUDA 训练、重载和推理 |
+| `plot_render` | 折线、散点、柱状图和空数据/恒定值图表渲染 |
 
 GitHub Actions 会在每次提交和 Pull Request 上运行不依赖大型第三方库的 `core_logic` 检查。完整图形界面和 LibTorch 测试在本机运行。
 

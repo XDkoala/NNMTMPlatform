@@ -9,7 +9,7 @@
 
 // 构造函数
 TrainingWindow::TrainingWindow(ModelInfo info, QWidget* parent)
-    : QDialog(parent), m_info(info), m_minLoss(std::numeric_limits<double>::max()), m_maxLoss(0.0)
+    : QDialog(parent), m_info(info)
 {
     setWindowTitle("模型训练监控平台 - " + info.name); // 设置标题
     resize(1000, 700); // 设置大小
@@ -33,50 +33,10 @@ TrainingWindow::TrainingWindow(ModelInfo info, QWidget* parent)
     QHBoxLayout* contentLayout = new QHBoxLayout();
 
     // === 左侧：图表 ===
-    chart = new QChart(); // 创建 QtChart 对象
-    chart->setTitle("实时 Loss 曲线"); // 设置标题
-    chart->setTheme(QChart::ChartThemeLight); // 设置明亮主题
-    chart->setAnimationOptions(QChart::NoAnimation); // 禁用动画以提高性能
-
-    seriesVal = new QLineSeries(); // 验证集 Loss 曲线
-    seriesVal->setName("Validation Loss");
-    seriesVal->setColor(Qt::blue); // 蓝色
-    // [修复] 移除 setUseOpenGL(true)，避免小数据量下的渲染错误
-    // seriesVal->setUseOpenGL(true);
-
-    seriesTrain = new QLineSeries(); // 训练集 Loss 曲线
-    seriesTrain->setName("Train Loss");
-    seriesTrain->setColor(Qt::green); // 绿色
-    // [修复] 移除 setUseOpenGL(true)
-    // seriesTrain->setUseOpenGL(true);
-
-    chart->addSeries(seriesVal); // 添加曲线到图表
-    chart->addSeries(seriesTrain);
-
-    // 初始化坐标轴
-    axisX = new QValueAxis; // X 轴 (Epoch)
-    axisX->setTitleText("Epoch (轮数)");
-    axisX->setLabelFormat("%d");
-    axisX->setRange(0, 10); // 初始范围 0-10
-    axisX->setTickCount(11); // 保证整数刻度
-
-    axisY = new QValueAxis; // Y 轴 (Loss)
-    axisY->setTitleText("Loss (损失值)");
-    axisY->setLabelFormat("%.4f"); // 保留 4 位小数
-    axisY->setRange(0, 1); // 初始范围 0-1
-
-    chart->addAxis(axisX, Qt::AlignBottom); // 添加 X 轴到底部
-    chart->addAxis(axisY, Qt::AlignLeft); // 添加 Y 轴到左侧
-    seriesVal->attachAxis(axisX); // 绑定轴
-    seriesVal->attachAxis(axisY);
-    seriesTrain->attachAxis(axisX);
-    seriesTrain->attachAxis(axisY);
-
-    QChartView* chartView = new QChartView(chart); // 创建图表视图控件
-    chartView->setRenderHint(QPainter::Antialiasing); // 开启抗锯齿
-
-    // 将图表加入内容布局 (比例 2)
-    contentLayout->addWidget(chartView, 2);
+    chart = new PlotWidget("实时 Loss 曲线", "Epoch (轮数)", "Loss (损失值)", this);
+    seriesVal = chart->addSeries("Validation Loss", QColor("#2563eb"));
+    seriesTrain = chart->addSeries("Train Loss", QColor("#16a34a"));
+    contentLayout->addWidget(chart, 2);
 
     // === 右侧：历史数据表格 ===
     QFrame* rightFrame = new QFrame(); // 右侧容器
@@ -164,8 +124,8 @@ TrainingWindow::~TrainingWindow() {
 
 // 更新图表和表格的槽函数
 void TrainingWindow::updateChart(int step, double trainLoss, double valLoss) {
-    seriesVal->append(step, valLoss); // 添加验证 Loss 点
-    seriesTrain->append(step, trainLoss); // 添加训练 Loss 点
+    chart->append(seriesVal, step, valLoss); // 添加验证 Loss 点
+    chart->append(seriesTrain, step, trainLoss); // 添加训练 Loss 点
 
     // 更新表格
     int row = historyTable->rowCount();
@@ -175,49 +135,6 @@ void TrainingWindow::updateChart(int step, double trainLoss, double valLoss) {
     historyTable->setItem(row, 2, new QTableWidgetItem(QString::number(valLoss, 'f', 5))); // 设置 Val Loss
     historyTable->scrollToBottom(); // 滚动到底部
 
-    // === 动态调整坐标轴 ===
-
-    // 1. 调整 X 轴
-    // 如果当前步数超过了轴的最大值，扩展轴
-    if (step > axisX->max()) {
-        axisX->setMax(step < 10 ? 10 : step + 1);
-    }
-
-    // 2. 调整 Y 轴
-    // 更新全局最大最小值
-    double localMax = std::max(trainLoss, valLoss);
-    double localMin = std::min(trainLoss, valLoss);
-
-    bool rangeChanged = false;
-    // 首次运行时初始化
-    if (step == 1) {
-        m_minLoss = localMin;
-        m_maxLoss = localMax;
-        rangeChanged = true;
-    }
-    else {
-        // 更新极值
-        if (localMin < m_minLoss) { m_minLoss = localMin; rangeChanged = true; }
-        if (localMax > m_maxLoss) { m_maxLoss = localMax; rangeChanged = true; }
-    }
-
-    // 只有当范围确实发生变化，或者刚开始时，才刷新 Y 轴
-    if (rangeChanged || step == 1) {
-        double currentMin = m_minLoss;
-        double currentMax = m_maxLoss;
-
-        // 防止最大等于最小导致 crash 或显示异常
-        if (std::abs(currentMax - currentMin) < 1e-6) {
-            currentMax += 0.1;
-            currentMin = std::max(0.0, currentMin - 0.1);
-        }
-
-        // 添加 10% 的上下缓冲空间，让曲线不贴边
-        double margin = (currentMax - currentMin) * 0.1;
-        if (margin == 0) margin = 0.1; // 再次保底
-
-        axisY->setRange(std::max(0.0, currentMin - margin), currentMax + margin); // 设置新范围
-    }
 }
 // 训练结束处理
 void TrainingWindow::onFinished() {

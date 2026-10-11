@@ -5,7 +5,7 @@
 - Visual Studio 2022 Build Tools，安装“使用 C++ 的桌面开发”工作负载。
 - CMake 3.24 或更高版本。
 - Ninja。
-- 与 MSVC x64 兼容的 Qt 6：Core、Gui、Widgets、Charts。
+- 与 MSVC x64 兼容的 Qt 6：Core、Gui、Widgets。图表由项目使用 QPainter 绘制，不依赖 Qt Charts。
 - LibTorch。CPU 版可直接使用 CPU；CUDA 版需要兼容的 NVIDIA 驱动和 CUDA Toolkit。
 - OpenCV：core、imgproc、imgcodecs。项目默认通过 vcpkg 安装路径查找。
 

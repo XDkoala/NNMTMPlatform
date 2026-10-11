@@ -33,10 +33,7 @@ struct FixtureCleanup {
 };
 
 int main() {
-    if (!torch::cuda::is_available()) {
-        std::cout << "CUDA is unavailable; skipping CNN pipeline check.\n";
-        return 77;
-    }
+    const bool hasCuda = torch::cuda::is_available();
 
     const std::string modelId = "cnn_pipeline_check";
     const fs::path imageRoot = fs::current_path() / "cnn_pipeline_fixture";
@@ -60,21 +57,21 @@ int main() {
             }
         }
 
-        setDevicePreference("cuda");
-        bool usedCuda = false;
+        setDevicePreference(hasCuda ? "cuda" : "cpu");
+        bool selectedDevice = false;
         CNN network(State::Train, Task::BinaryClassification, CNNType::LeNet,
                     imageRoot.string(), modelId);
         network.set_training_options(2, 2, 0.001);
         network.set_callbacks(
             nullptr,
             [&](const std::string& message, bool) {
-                if (message.find("CUDA:0") != std::string::npos) usedCuda = true;
+                if (message.find(hasCuda ? "CUDA:0" : "CPU") != std::string::npos) selectedDevice = true;
             },
             nullptr);
         network.conduct();
         setDevicePreference("");
 
-        if (!usedCuda) throw std::runtime_error("CNN pipeline did not select CUDA:0.");
+        if (!selectedDevice) throw std::runtime_error("CNN pipeline did not select its expected device.");
         if (!fs::exists(cleanup.parameterRoot / "model.pt")) {
             throw std::runtime_error("CNN pipeline did not save model.pt.");
         }
@@ -104,7 +101,8 @@ int main() {
             throw std::runtime_error("CNN streaming inference did not return two predictions.");
         }
 
-        std::cout << "CNN streaming train/save/load/infer pipeline passed on CUDA:0.\n";
+        std::cout << "CNN streaming train/save/load/infer pipeline passed on "
+                  << (hasCuda ? "CUDA:0" : "CPU") << ".\n";
         return 0;
     } catch (const std::exception& error) {
         setDevicePreference("");

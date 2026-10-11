@@ -1,13 +1,13 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(NNMTMPlatform VERSION 0.1.0 LANGUAGES CXX)
+project(NNMTMPlatform VERSION 0.1.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_AUTOMOC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Charts)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
 find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs)
 find_package(Torch REQUIRED)
 
@@ -16,6 +16,7 @@ qt_standard_project_setup()
 qt_add_executable(NNMTMPlatform
     src/app/main.cpp
     src/ui/AppUI.h
+    src/ui/PlotWidget.h
     src/ui/ModelCard.cpp
     src/ui/ModelManagementDialogs.cpp
     src/ui/TrainingWindow.cpp
@@ -42,7 +43,6 @@ target_link_libraries(NNMTMPlatform PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
-    Qt6::Charts
     ${TORCH_LIBRARIES}
     opencv_core
     opencv_imgproc
@@ -103,6 +103,19 @@ endif()
 include(CTest)
 
 if(BUILD_TESTING)
+    add_executable(NNMTMPlotRenderCheck tests/PlotRenderCheck.cpp src/ui/PlotWidget.h)
+    target_include_directories(NNMTMPlotRenderCheck PRIVATE src/ui)
+    target_link_libraries(NNMTMPlotRenderCheck PRIVATE Qt6::Widgets)
+    if(MSVC)
+        target_compile_options(NNMTMPlotRenderCheck PRIVATE /utf-8 /W3 /permissive-)
+    endif()
+    add_test(NAME plot_render COMMAND NNMTMPlotRenderCheck "${CMAKE_BINARY_DIR}/plot-checks")
+    if(WIN32)
+        set_tests_properties(plot_render PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=windows")
+    else()
+        set_tests_properties(plot_render PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    endif()
+
     add_executable(NNMTMCoreTests
         tests/CoreLogicTests.cpp
         src/core/TrainingUtils.h
@@ -162,7 +175,6 @@ if(BUILD_TESTING)
         target_compile_options(NNMTMCnnPipelineCheck PRIVATE /utf-8 /W3 /permissive-)
     endif()
     add_test(NAME cnn_pipeline COMMAND NNMTMCnnPipelineCheck)
-    set_tests_properties(cnn_pipeline PROPERTIES SKIP_RETURN_CODE 77)
 
     if(WIN32)
         file(GLOB CUDA_TEST_RUNTIME_DLLS "${TORCH_INSTALL_PREFIX}/lib/*.dll")

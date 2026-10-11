@@ -1,6 +1,7 @@
 # Build directories and generated files
 /build/
 /build-*/
+/dist/
 /.vs/
 /x64/
 /NNMTMPlatform/
