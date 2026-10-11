@@ -4,6 +4,8 @@ NNMTMPlatform 是一个本地运行的神经网络训练与模型管理工具，
 
 > 当前主要支持 Windows + MSVC；无需安装或打开 Visual Studio IDE，但需要 Visual Studio Build Tools 提供编译器。
 
+当前源码预览版：`v0.1.0`。版本变化见 [CHANGELOG](CHANGELOG.md)。
+
 ## 功能
 
 - 数值回归、数值二分类和数值多分类
